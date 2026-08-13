@@ -106,8 +106,14 @@ dsh-safe-delete/
 │   └── tools/          # safe_delete / trash_list / restore / purge
 ├── tests/              # unit tests (vitest)
 ├── docs/design.md      # design document
+├── docs/releasing.md   # release guide (OIDC publishing)
 └── examples/           # composition examples
 ```
+
+## Releasing
+
+Releases are published automatically via GitHub Actions with npm trusted
+publishing (OIDC) — no tokens, no OTP. See [docs/releasing.md](./docs/releasing.md).
 
 ## License
 
