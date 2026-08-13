@@ -112,4 +112,4 @@ dsh-safe-delete/
 
 ## 开源协议
 
-[MIT](./LICENSE) © [Qintsg](https://github.com/Qintsg)
+[Apache-2.0](./LICENSE) © [Qintsg](https://github.com/Qintsg)

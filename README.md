@@ -111,4 +111,4 @@ dsh-safe-delete/
 
 ## License
 
-[MIT](./LICENSE) © [Qintsg](https://github.com/Qintsg)
+[Apache-2.0](./LICENSE) © [Qintsg](https://github.com/Qintsg)

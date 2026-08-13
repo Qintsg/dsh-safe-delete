@@ -53,6 +53,17 @@ describe('analyzeDeleteCommand', () => {
     expect(analyzeDeleteCommand('rm a.txt', 'pwsh').isDelete).toBe(true)
   })
 
+  it('pwsh: 嵌入 bash -c 的 rm 命中（Windows 常见写法）', () => {
+    expect(analyzeDeleteCommand('bash -c "rm -rf dist"', 'pwsh').isDelete).toBe(true)
+    expect(analyzeDeleteCommand("bash -c 'rm /tmp/x'", 'pwsh').isDelete).toBe(true)
+    expect(analyzeDeleteCommand('wsl bash -c "rm /mnt/e/x"', 'pwsh').isDelete).toBe(true)
+    expect(analyzeDeleteCommand('bash.exe -c "rmdir old"', 'pwsh').isDelete).toBe(true)
+  })
+
+  it('pwsh: bash -c 内引号中的 rm 不误报', () => {
+    expect(analyzeDeleteCommand("bash -c \"echo 'rm x'\"", 'pwsh').isDelete).toBe(false)
+  })
+
   it('逃生标记放行', () => {
     expect(analyzeDeleteCommand(`${FORCE_DELETE_MARKER} rm -rf dist`, 'bash').forced).toBe(true)
     expect(analyzeDeleteCommand(`$env:${FORCE_DELETE_MARKER}; Remove-Item x`, 'pwsh').forced).toBe(true)

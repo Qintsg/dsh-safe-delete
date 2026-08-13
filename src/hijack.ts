@@ -55,18 +55,40 @@ export function stripQuotedAndComments(command: string): string {
 }
 
 /**
+ * 提取 pwsh 中嵌入的 `bash -c "..."` 调用内容（Windows 上模型常用
+ * bash 语法，删除命令常藏在引号内，需单独检测）。
+ *
+ * :param command: 原始 pwsh 命令
+ * :returns: 提取到的 bash 命令内容列表（未剥离引号嵌套）
+ */
+export function extractBashCommands(command: string): string[] {
+  const re = /(?:wsl(?:\.exe)?\s+)?bash(?:\.exe)?\s+-c\s+(['"])((?:\\.|(?!\1).)*)\1/giu
+  const found: string[] = []
+  for (const match of command.matchAll(re)) {
+    if (match[2] !== undefined) found.push(match[2])
+  }
+  return found
+}
+
+/**
  * 分析命令：是否删除命令、是否携带逃生标记。
+ * pwsh 命令会额外检测嵌入的 bash -c 内容（剥离后再检测）。
  *
  * :param command: 原始命令
  * :param dialect: shell 方言
  * :returns: 分析结果
  */
 export function analyzeDeleteCommand(command: string, dialect: ShellDialect): { isDelete: boolean; forced: boolean } {
-  const stripped = stripQuotedAndComments(command)
   const patterns = dialect === 'bash' ? BASH_DELETE_PATTERNS : PWSH_DELETE_PATTERNS
+  const texts = [stripQuotedAndComments(command)]
+  if (dialect === 'pwsh') {
+    for (const inner of extractBashCommands(command)) {
+      texts.push(stripQuotedAndComments(inner))
+    }
+  }
   return {
-    isDelete: patterns.some((pattern) => pattern.test(stripped)),
-    forced: stripped.includes(FORCE_DELETE_MARKER),
+    isDelete: texts.some((text) => patterns.some((pattern) => pattern.test(text))),
+    forced: texts.some((text) => text.includes(FORCE_DELETE_MARKER)),
   }
 }
 
