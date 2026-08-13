@@ -1,6 +1,6 @@
 # dsh-safe-delete 设计文档
 
-> 版本：v2.1（2026-08-13）· 状态：设计定稿，待实现
+> 版本：v2.1（2026-08-13）· 状态：**已实现**（M1–M5 完成，README 见仓库根目录）
 > v2 变更：回收区移至工作区 `.dsh-trash`；新增删除命令劫持（`tools/pre-execute`）；
 > 新增 DSH Web 设置面板 + 实时生效（settings 服务）；恢复冲突策略细化。
 > v2.1 变更：新增逃生舱设计（`DSH_FORCE_DELETE` 命令标记 + `safe_delete permanent` 参数 + 拒绝引导），防阻断型 bug。

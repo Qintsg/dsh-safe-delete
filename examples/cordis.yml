@@ -1,0 +1,52 @@
+# dsh-safe-delete 组合配置示例
+
+> 将本文件内容合并到你的 DSH `cordis.yml`（或作为 `--patch` 覆盖层）以启用插件。
+
+## 最小配置（默认全部使用 schema 默认值）
+
+```yaml
+plugins:
+  dsh-safe-delete:
+    $include: node_modules/dsh-safe-delete/lib/index.js
+```
+
+## 完整配置示例
+
+```yaml
+plugins:
+  dsh-safe-delete:
+    $include: node_modules/dsh-safe-delete/lib/index.js
+    config:
+      # 回收区根目录（绝对路径）；留空 = 会话工作区下 .dsh-trash
+      trashDir: ""
+      # 保留天数，0 = 不按时间清理
+      retentionDays: 30
+      # 回收区大小上限（字节），0 = 不限
+      maxSizeBytes: 5368709120
+      # 单次删除达到该条数需审批，0 = 始终确认
+      confirmThreshold: 10
+      # 恢复冲突默认策略：rename | skip | overwrite
+      restoreConflict: rename
+      # 劫持 bash/pwsh 删除命令：block | ask | off
+      deleteHijack: block
+```
+
+## 本地开发（源码直载）
+
+```yaml
+plugins:
+  dsh-safe-delete:
+    $include: /absolute/path/to/dsh-safe-delete/src/index.ts
+```
+
+## 工具调用示例
+
+模型视角的操作序列：
+
+```
+1. 误删恢复：trash_list → 找到条目 id → restore { ids: ["20260813T223045-3f2a"] }
+2. 清理构建产物：safe_delete { paths: ["<ws>/dist"], recursive: true }
+3. 清空回收区：purge { all: true }   # 需用户确认
+4. 真删 node_modules：safe_delete { paths: ["<ws>/node_modules"], recursive: true, permanent: true }
+5. 终端强制删除（绕过劫持）：DSH_FORCE_DELETE=1 rm -rf <path>
+```
