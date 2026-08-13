@@ -198,17 +198,19 @@ interface WebServerFace {
 }
 
 /**
- * 安装设置路由（webServer 服务存在时）。
+ * 安装设置路由（webServer 服务出现时生效——用 inject 等待服务就绪，
+ * 避免插件加载早于 webServer 时静默跳过导致路由永不注册）。
  *
  * :param ctx: 插件上下文
  */
 export function installSettingsRoute(ctx: Context): void {
-  const webServer = ctx.get('webServer') as WebServerFace | undefined
-  if (webServer === undefined) return
-  const backend = new SafeDeleteWebBackend(ctx)
-  ctx.effect(() => webServer.register({
-    kind: 'exact',
-    path: SETTINGS_ROUTE,
-    handler: (req, res) => backend.handle(req, res),
-  }), 'safe-delete: settings route')
+  ctx.inject(['webServer'], (webCtx) => {
+    const webServer = webCtx.get('webServer') as WebServerFace
+    const backend = new SafeDeleteWebBackend(webCtx)
+    webCtx.effect(() => webServer.register({
+      kind: 'exact',
+      path: SETTINGS_ROUTE,
+      handler: (req, res) => backend.handle(req, res),
+    }), 'safe-delete: settings route')
+  })
 }

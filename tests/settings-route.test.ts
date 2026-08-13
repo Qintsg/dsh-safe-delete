@@ -49,8 +49,8 @@ function mockSettings(initial: Record<string, unknown>): {
   }
 }
 
-/** mock 上下文（logger 同时支持函数与对象调用形式）。 */
-function mockCtx(settings?: ReturnType<typeof mockSettings>['service']): Context {
+/** mock 上下文（logger 同时支持函数与对象调用形式，inject 即时回调）。 */
+function mockCtx(settings?: ReturnType<typeof mockSettings>['service'], webServer?: { register: (route: object) => () => void }): Context {
   const logger = Object.assign(
     (): { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void } => ({
       info: () => undefined,
@@ -58,9 +58,18 @@ function mockCtx(settings?: ReturnType<typeof mockSettings>['service']): Context
     }),
     { info: () => undefined, warn: () => undefined },
   )
-  return {
-    get: (name: string) => (name === 'settings' ? settings : undefined),
+  const base = {
+    get: (name: string) => (name === 'settings' ? settings : name === 'webServer' ? webServer : undefined),
     logger,
+    effect: (fn: () => unknown) => { fn() },
+  }
+  return {
+    ...base,
+    inject: (keys: string[], callback: (scoped: Context) => void) => {
+      if (keys.includes('webServer') && webServer !== undefined) {
+        callback({ ...base, get: (name: string) => (name === 'webServer' ? webServer : name === 'settings' ? settings : undefined) } as unknown as Context)
+      }
+    },
   } as unknown as Context
 }
 
@@ -193,24 +202,16 @@ describe('SafeDeleteWebBackend.handle', () => {
 })
 
 describe('installSettingsRoute', () => {
-  it('webServer 服务存在时注册路由', () => {
+  it('webServer 服务存在时经 inject 注册路由', () => {
     const register = vi.fn(() => () => undefined)
-    const ctx = {
-      get: (name: string) => (name === 'webServer' ? { register } : name === 'settings' ? mockSettings({}).service : undefined),
-      effect: (fn: () => unknown) => { fn() },
-      logger: () => ({ info: () => undefined, warn: () => undefined }),
-    } as unknown as Context
-    installSettingsRoute(ctx)
+    const settings = mockSettings({})
+    installSettingsRoute(mockCtx(settings.service, { register }))
     expect(register).toHaveBeenCalledTimes(1)
     expect(register.mock.calls[0]?.[0]).toMatchObject({ kind: 'exact', path: SETTINGS_ROUTE })
   })
 
-  it('webServer 服务缺失时静默跳过', () => {
-    const ctx = {
-      get: () => undefined,
-      effect: () => undefined,
-      logger: () => ({ info: () => undefined, warn: () => undefined }),
-    } as unknown as Context
-    expect(() => installSettingsRoute(ctx)).not.toThrow()
+  it('webServer 服务缺失时静默跳过（inject 不回调）', () => {
+    const settings = mockSettings({})
+    expect(() => installSettingsRoute(mockCtx(settings.service))).not.toThrow()
   })
 })
