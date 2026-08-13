@@ -32,3 +32,6 @@ Thumbs.db
 # 临时文件
 .tmp/
 temp/
+
+# dsh-safe-delete 工作区回收区（使用方项目同样建议忽略）
+.dsh-trash/
