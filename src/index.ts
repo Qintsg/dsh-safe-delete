@@ -8,7 +8,9 @@
  * @date 2026-08-13
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { Config, resolveConfig, type ResolvedConfig } from './config.js'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { Config, resolveConfig, type Config as ConfigType, type ResolvedConfig } from './config.js'
+import { applyDeleteHijack } from './hijack.js'
 import { applyPurgeTool } from './tools/purge.js'
 import { applyRestoreTool } from './tools/restore.js'
 import { applySafeDeleteTool } from './tools/safe-delete.js'
@@ -22,24 +24,47 @@ export const name = 'safe-delete'
 /** 插件运行时依赖的服务。 */
 export const inject = ['tools', 'systemPrompt']
 
+/** settings 命名空间（小写 kebab-case）。 */
+const SETTINGS_NS = settingsNamespace('safe-delete')
+
 /**
- * 插件主体：校验配置，注册四个安全删除工具与系统提示引导。
+ * 插件主体：校验配置，注册安全删除工具、删除命令劫持与
+ * settings 实时配置（DSH Web 设置面板）。
  *
  * :param ctx: Cordis 上下文（当前 Fiber）
  * :param config: 插件配置（默认值已由 schemastery 填充）
  */
-export function apply(ctx: Context, config: Config): void {
+export function apply(ctx: Context, config: ConfigType): void {
   const resolved = resolveConfig(config as ResolvedConfig)
+  // 当前生效配置：组合配置为初始值；settings 服务存在时经
+  // setSource/onChange 链路刷新为设置面板的解析值（applies: live）。
+  let sourceThunk: () => ResolvedConfig = () => resolved
   let current = resolved
   const getConfig = (): ResolvedConfig => current
-  // M4 接入 settings 服务后，配置变更通过 watch 更新 current 实现实时生效。
+  const refreshConfig = (): void => {
+    current = sourceThunk()
+  }
 
   ctx.logger('safe-delete').info(
-    '回收区配置已加载: %s（保留 %d 天，上限 %s）',
+    '回收区配置已加载: %s（保留 %d 天，上限 %s，劫持模式 %s）',
     current.trashDir || '(工作区 .dsh-trash)',
     current.retentionDays,
     current.maxSizeBytes === 0 ? '不限' : `${current.maxSizeBytes} 字节`,
+    current.deleteHijack,
   )
+
+  installSettingsSection(ctx, SETTINGS_NS, Config, config, {
+    setSource: (source) => {
+      sourceThunk = () => source() as ResolvedConfig
+    },
+    onChange: () => {
+      refreshConfig()
+      ctx.logger('safe-delete').info('配置已更新: 劫持模式 %s', current.deleteHijack)
+    },
+    validate: (value) => {
+      resolveConfig(value)
+    },
+  })
 
   ctx.systemPrompt.section({
     name: 'tool:safe-delete',
@@ -53,4 +78,5 @@ export function apply(ctx: Context, config: Config): void {
   applyTrashListTool(ctx, getConfig)
   applyRestoreTool(ctx, getConfig)
   applyPurgeTool(ctx, getConfig)
+  applyDeleteHijack(ctx, () => getConfig().deleteHijack)
 }

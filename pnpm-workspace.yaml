@@ -15,3 +15,4 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-code-runtime@0.1.0-rc.2'
   - '@deepseek-ai/dsh-tools@0.1.0-rc.2'
   - '@deepseek-ai/dsh-user-approval@0.1.0-rc.2'
+  - '@deepseek-ai/dsh-settings@0.1.0-rc.2'
