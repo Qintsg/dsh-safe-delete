@@ -49,3 +49,10 @@ examples/       # 使用示例
 - 插件通过 `peerDependencies` 依赖 `cordis`、`schemastery`、`@deepseek-ai/dsh-agent`。
 - Host 半区提供 Service / Tool；Client 半区通过 Slot 注册浏览器 UI。
 - 所有 Service、Tool、事件监听、定时器必须注册到当前 Fiber，可逆释放。
+
+## 官方文档（重点参考）
+
+- 插件开发入门：https://deepseek-harness.github.io/deepseek-harness/develop/basic/
+- 工具定义 DSL：https://deepseek-harness.github.io/deepseek-harness/develop/basic/tool
+- 插件配置：https://deepseek-harness.github.io/deepseek-harness/develop/basic/config
+- 官方源码（实现细节以源码为准）：https://github.com/deepseek-ai/deepseek-harness
