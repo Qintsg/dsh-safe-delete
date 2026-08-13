@@ -1,6 +1,8 @@
 # dsh-safe-delete 设计文档
 
-> 版本：v1（2026-08-13）· 状态：设计讨论中
+> 版本：v2（2026-08-13）· 状态：设计定稿，待实现
+> v2 变更：回收区移至工作区 `.dsh-trash`；新增删除命令劫持（`tools/pre-execute`）；
+> 新增 DSH Web 设置面板 + 实时生效（settings 服务）；恢复冲突策略细化。
 
 ## 1. 目标与范围
 
@@ -10,48 +12,55 @@
 - 范围：本地文件系统路径（绝对路径）。
 - 非目标：远程后端（workspace URI）、系统回收站集成。
 
-## 2. 总体架构：混合拦截
-
-现实约束：DSH 的 `ctx.fs` 服务**只有读写方法**（readText/streamText/writeText/edit/
-stat/listDir/resolve），**没有删除与移动方法**；文件删除发生在终端工具
-（bash `rm` / pwsh `Remove-Item`）中，无法安全解析拦截。
-
-因此混合方案落地为三层：
+## 2. 总体架构
 
 | 层 | 机制 | 说明 |
 |---|---|---|
 | 核心 | 独立 agent 工具 | `safe_delete` / `trash_list` / `restore` / `purge`，经 `ctx.tools.register(defineTool(...))` 注册 |
-| 软拦截 | systemPrompt 引导 | 通过 `ctx.systemPrompt.section` 注入使用指导：删除文件应使用 `safe_delete` 而非 `rm`（官方同款做法，如 read 工具的 "not shell commands like cat"） |
-| 扩展点 | fs 删除拦截开关（预留） | 若未来 fs 服务增加删除方法，提供配置开关 `interceptFsDelete` 包装拦截；本期不实现 |
+| 引导 | systemPrompt | `ctx.systemPrompt.section` 注入：删除文件应使用 `safe_delete` 而非 `rm`（始终生效） |
+| 劫持 | `tools/pre-execute` 钩子 | 检测 bash/pwsh 删除命令（rm / Remove-Item / del / erase / rd / rmdir / unlink 等），按配置 `block`（拒绝并提示）或 `ask`（转人工审批） |
+| 配置 | settings 服务 | 注册 `safe-delete` 命名空间，DSH Web 设置面板自动渲染表单，变更实时生效（`watch`） |
+| 扩展点 | fs 删除拦截（预留） | 若未来 fs 服务增加删除方法，提供 `interceptFsDelete` 开关（本期不实现） |
 
-## 3. 回收区布局（自建 + manifest 驱动）
+## 3. 回收区布局（工作区 .dsh-trash）
 
-默认位置：`$DSH_HOME/trash`（可用配置 `trashDir` 覆盖）。
+默认位置：**当前会话工作区下的 `.dsh-trash/`**（配置 `trashDir` 可覆盖为任意绝对路径）。
 
 ```
-trash/
-├── entries/
-│   └── <entryId>/
-│       ├── meta.json      # 条目元数据（自包含，损坏只影响单条目）
-│       └── data/          # 被删除的文件/目录（保留原名与结构）
-├── manifest.jsonl         # 索引缓存（追加式，可由 entries/ 重建）
-└── .gitkeep
+.dsh-trash/                          # 工作区回收区（建议加入 .gitignore）
+├── files/                           # 人类可读区：镜像原始相对路径树
+│   ├── src/index.ts                 # 首次删除
+│   ├── src/index.ts.20260813T223045 # 同名再次删除：追加删除时间戳后缀
+│   └── docs/old-notes.md
+├── entries/                         # 条目元数据（机器可读，每删除一次一个文件）
+│   └── 20260813T223045-3f2a.json
+├── manifest.jsonl                   # 索引缓存（追加式，可由 entries/ 重建）
+└── README.md                        # 人类说明：这里是回收区，如何手动找回
 ```
 
-- `entryId`：毫秒时间戳 + 随机后缀（如 `20260813T223045-3f2a`），保证唯一。
-- 同一卷内 `rename` 原子移动；跨卷（EXDEV）回退 **copy + delete**。
-- 每个条目自包含 `meta.json`，`manifest.jsonl` 仅作索引，损坏时可重建。
+设计要点：
 
-### 条目元数据（meta.json）
+- **人类回滚**：打开 `files/` 即可看到熟悉的目录树，直接拖回原位置即可
+  （结构直观、无需任何工具）。
+- **模型回滚**：`trash_list` 读 `manifest.jsonl` → `restore` 按条目 ID 恢复。
+- **工作区外文件**（删除目标不在工作区内）：`files/_external/<entryId>-<basename>/`，
+  避免 `../` 逃逸相对路径。
+- 相对路径由工作区（`exec.agent.session.header.cwd`）解析；工作区不可用时
+  全部落入 `_external/`。
+- 恢复/清除操作以文件系统实际存在为准，`manifest.jsonl` 损坏或人类手动
+  移动过文件时自动降级（按 `entries/*.json` 重建索引）。
+
+### 条目元数据（entries/<entryId>.json）
 
 ```jsonc
 {
   "id": "20260813T223045-3f2a",
-  "originalPath": "E:/Projects/demo/old-file.txt",  // 原始绝对路径
+  "originalPath": "E:/Projects/demo/src/index.ts",  // 原始绝对路径
+  "trashPath": "src/index.ts",                      // 回收区相对路径（files/ 下）
   "deletedAt": "2026-08-13T22:30:45.123Z",          // 删除时间（ISO）
   "type": "file" | "directory",
-  "sizeBytes": 12345,                                // 目录为递归估算
-  "sourceSession": "agent-xxx"                       // 来源会话（如有）
+  "sizeBytes": 12345,                               // 目录为递归估算
+  "sourceSession": "agent-xxx"                      // 来源会话（如有）
 }
 ```
 
@@ -61,8 +70,6 @@ trash/
 
 ### 4.1 safe_delete
 
-移入回收区（核心工具）。
-
 ```jsonc
 // 参数
 {
@@ -70,44 +77,40 @@ trash/
   "recursive": true                    // 可选，目录删除需为 true
 }
 // 输出
-{ "entries": [{ "id", "originalPath", "deletedAt" }], "skipped": [{ "path", "reason" }] }
+{ "entries": [{ "id", "originalPath", "trashPath", "deletedAt" }], "skipped": [{ "path", "reason" }] }
 ```
 
-- 不存在/越界（沙箱拒绝）的路径记入 `skipped`，不中断整体。
-- 单次条目数 ≥ `confirmThreshold` 时需确认（见 §6）。
+- 不存在/越界的路径记入 `skipped`，不中断整体。
+- 单次条目数 ≥ `confirmThreshold`（默认 10）时经审批确认后执行。
+- 同名冲突：`files/<relpath>` 已存在 → 追加 `.yyyyMMddTHHmmss` 后缀。
 
 ### 4.2 trash_list
 
-查看回收区（恢复前的检索）。
-
 ```jsonc
 // 参数
-{ "pattern": "*.tmp", "limit": 50 }   // 均可选；pattern 匹配 originalPath 尾部
+{ "pattern": "*.tmp", "limit": 50, "sort": "deletedAt" }   // 均可选
 // 输出
-{ "entries": [{ "id", "originalPath", "deletedAt", "type", "sizeBytes" }] }
+{ "entries": [{ "id", "originalPath", "trashPath", "deletedAt", "type", "sizeBytes" }], "total": 42 }
 ```
 
 ### 4.3 restore
-
-恢复条目到原路径。
 
 ```jsonc
 // 参数
 {
   "ids": ["<entryId>", ...],          // 与 pattern 二选一
   "pattern": "*.tmp",
-  "onConflict": "rename"              // skip | overwrite | rename（默认 rename）
+  "onConflict": "rename"              // skip | overwrite | rename（默认取配置 restoreConflict）
 }
 // 输出
 { "restored": [{ "id", "path" }], "failed": [{ "id", "reason" }] }
 ```
 
-- 原路径已存在时按 `onConflict` 处理；`rename` 自动追加 ` (1)` 后缀。
-- 原路径已不存在时按原路径恢复。
+- 原路径已不存在 → 按原路径恢复。
+- 原路径已存在 → 按 `onConflict`：`rename` 自动命名 `name (1).ext`（递增）；
+  `skip` 跳过并报告；`overwrite` 覆盖（危险，需确认）。
 
 ### 4.4 purge
-
-彻底清除（不可逆，强制确认）。
 
 ```jsonc
 // 参数
@@ -116,68 +119,98 @@ trash/
 { "purged": [{ "id" }], "failed": [{ "id", "reason" }] }
 ```
 
-- 必须经确认机制批准后才执行（见 §6）。
+- **任何 purge 调用都必须经审批确认**（不可逆操作）。
 
-## 5. 保留策略（惰性清理 + 大小上限）
+## 5. 删除命令劫持（tools/pre-execute）
 
-在每次工具操作（safe_delete / restore / purge）前顺带执行 `sweep()`：
+监听 `tools/pre-execute`，当目标工具为 `bash` / `pwsh` 时对 `command`
+做删除命令检测（启发式正则，尽力避免误报）：
+
+| 平台 | 检测命令 |
+|---|---|
+| bash | `rm`、`rmdir`、`unlink`、`del`、`erase`、`rm -rf` 等（词边界匹配，排除注释/引号内文本） |
+| pwsh | `Remove-Item`、`del`、`erase`、`rd`、`rmdir`、`rm` 及别名（含 `-Recurse -Force` 组合） |
+
+配置 `deleteHijack`：
+
+| 值 | 行为 |
+|---|---|
+| `off` | 不检测（仅保留 systemPrompt 引导） |
+| `block`（默认） | 检测到删除命令 → `{ kind: 'deny', reason: '请使用 safe_delete 工具…' }` |
+| `ask` | 检测到 → `ask` 决策，转 `ctx.approval` 人工确认 |
+
+启发式局限（文档明示）：管道/变量拼接等复杂命令可能漏检；正则检测
+不构成安全边界，仅作防误删的辅助手段。
+
+## 6. 保留策略（惰性清理 + 大小上限）
+
+每次工具操作（safe_delete / restore / purge）前顺带执行 `sweep()`：
 
 1. 删除 `deletedAt` 早于 `now - retentionDays` 的条目（`retentionDays: 0` 表示不过期清理）。
-2. 若回收区总大小超过 `maxSizeBytes`，按 `deletedAt` 从旧到新清除，直到低于上限。
+2. 回收区总大小超过 `maxSizeBytes` 时，按 `deletedAt` 从旧到新清除至低于上限。
 3. `sweep` 内失败不影响主操作，仅记录日志。
+4. 同时校验 `files/` 与索引一致性（人类手动删除后清理孤儿索引）。
 
-配置默认值：`retentionDays: 30`、`maxSizeBytes: 5 GiB`（可配 0 表示不限）。
+## 7. 确认机制
 
-## 6. 确认机制
-
-- **触发条件**：`safe_delete` 单次条目数 ≥ `confirmThreshold`（默认 10），或任何 `purge` 调用。
-- **机制**：经 DSH 审批服务（`@deepseek-ai/dsh-user-approval`，实现阶段确认接口）发起确认请求；拒绝则操作不执行。
+- 触发：任何 `purge`；`safe_delete` 单次条目数 ≥ `confirmThreshold`；`deleteHijack: 'ask'`。
+- 机制：`ctx.approval`（实现阶段确认调用接口；`tools/pre-execute` 的 `ask` 决策
+  与工具内确认两条路径）。
 - `confirmThreshold: 0` 表示始终确认。
 
-## 7. 平台处理
+## 8. DSH Web 设置面板（settings 集成）
 
-- **跨盘移动**：`rename` 抛 `EXDEV` 时回退 copy + delete（校验校验和后删除源）。
-- **Windows**：大小写不敏感路径比较（恢复冲突检测）；只读文件移入回收区前去除只读属性。
-- **符号链接**：删除符号链接本身，不跟随目标。
-- 尽力保留 mtime/权限位。
+- 注册命名空间 `safe-delete`（`settingsNamespace('safe-delete')`），
+  schema 经 `describe()` 由 DSH Web 内置设置面板**自动渲染表单**。
+- `applies: 'live'`（实时生效）：配置变更 → `settings/updated` → `watch`
+  回调 → 热重建（回收区路径解析、劫持参数、阈值）。
+- 使用官方 `installSettingsSection` 辅助：settings 服务缺失时回退到组合配置。
+- 实现阶段验证点：确认 dsh-web-app 内置设置面板确实渲染该命名空间。
 
-## 8. 配置项汇总
+## 9. 配置项汇总
 
 | 配置 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `trashDir` | string | `''`（= `$DSH_HOME/trash`） | 回收区根目录 |
+| `trashDir` | string | `''`（工作区 `.dsh-trash`） | 回收区根目录（绝对路径或空） |
 | `retentionDays` | number | `30` | 保留天数，`0` 不自动过期 |
-| `maxSizeBytes` | number | `5 GiB` | 回收区大小上限，`0` 不限 |
-| `confirmThreshold` | number | `10` | 单次删除条数阈值，`0` 始终确认 |
+| `maxSizeBytes` | number | `5368709120`（5 GiB） | 回收区大小上限，`0` 不限 |
+| `confirmThreshold` | number | `10` | 单次删除条数确认阈值，`0` 始终确认 |
+| `restoreConflict` | enum | `rename` | 恢复冲突默认策略：`rename` / `skip` / `overwrite` |
+| `deleteHijack` | enum | `block` | 删除命令劫持：`off` / `block` / `ask` |
 | `interceptFsDelete` | boolean | `false` | 预留：fs 删除拦截开关（本期不实现） |
 
-## 9. 模块划分（src/）
+## 10. 模块划分（src/）
 
 ```
 src/
-├── index.ts          # 入口：name/inject/Config/apply，注册工具与 systemPrompt
+├── index.ts          # 入口：settings 注册、工具注册、劫持钩子、systemPrompt
 ├── config.ts         # 配置 schema + 校验
-├── paths.ts          # 回收区路径解析、条目 ID 生成、路径规范化
-├── manifest.ts       # manifest.jsonl 读写、条目扫描、sweep（惰性清理）
-├── move.ts           # 跨盘移动（rename → copy+delete）、Windows 处理
-├── tools/
-│   ├── safe-delete.ts
-│   ├── trash-list.ts
-│   ├── restore.ts
-│   └── purge.ts
-└── errors.ts         # 错误类型（回收区损坏、路径越界等）
+├── trash/
+│   ├── paths.ts      # 回收区路径解析（工作区解析、条目 ID、相对路径映射）
+│   ├── manifest.ts   # entries/meta 读写、索引重建、sweep（惰性清理）
+│   ├── move.ts       # 跨盘移动（rename → copy+delete）、Windows 处理
+│   └── ops.ts        # safeDelete / restore / purge / list 核心逻辑（纯函数，单测全覆盖）
+├── hijack.ts         # tools/pre-execute 删除命令检测（bash/pwsh 正则表）
+├── approval.ts       # ctx.approval 确认封装
+└── tools/
+    ├── safe-delete.ts
+    ├── trash-list.ts
+    ├── restore.ts
+    └── purge.ts
 ```
 
-## 10. 实现阶段计划
+## 11. 实现阶段计划
 
-- [ ] M1：`paths.ts` + `manifest.ts` + `move.ts` 基础设施（纯函数，单测全覆盖）
-- [ ] M2：`safe_delete` 工具 + systemPrompt 引导 + 惰性清理
-- [ ] M3：`trash_list` / `restore` / `purge` 工具
-- [ ] M4：确认机制接入（approval）+ 端到端测试
-- [ ] M5：README 使用文档、examples、发布准备
+- [ ] M1：`config.ts` + `trash/paths.ts` + `trash/move.ts` 基础设施（纯函数，单测）
+- [ ] M2：`trash/manifest.ts` + `trash/ops.ts` 核心操作（safeDelete/restore/purge/list + sweep）
+- [ ] M3：四个工具注册 + systemPrompt 引导
+- [ ] M4：`hijack.ts` 删除命令检测 + settings 集成（Web 面板 + 实时生效）
+- [ ] M5：确认机制（approval）+ 端到端测试
+- [ ] M6：README 使用文档、examples、发布准备
 
-## 11. 开放问题
+## 12. 实现阶段验证点
 
-- [ ] 确认机制的具体接口（`@deepseek-ai/dsh-user-approval` 的调用方式）
-- [ ] 沙箱配合：safe_delete 是否应尊重 fs 沙箱边界（实现阶段查 `ctx.fs.sandboxMode`）
-- [ ] `sourceSession` 是否采集（需要 session 服务注入）
+- [ ] `ctx.approval` 的调用接口（工具内确认 vs pre-execute ask）
+- [ ] dsh-web-app 内置设置面板是否自动渲染 `safe-delete` 命名空间
+- [ ] `exec.agent.session.header.cwd` 在工具执行中的可用性（工作区解析）
+- [ ] `deleteHijack` 正则在实际 bash/pwsh 调用中的误报率
