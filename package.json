@@ -1,0 +1,66 @@
+{
+  "name": "dsh-safe-delete",
+  "version": "0.1.0",
+  "description": "Safe delete plugin for DeepSeek Harness (DSH): move files to trash / staging area instead of permanent removal, with restore and purge support.",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "safe-delete",
+    "trash",
+    "file-management"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qintsg/dsh-safe-delete.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Qintsg/dsh-safe-delete/issues"
+  },
+  "homepage": "https://github.com/Qintsg/dsh-safe-delete#readme",
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "docs",
+    "examples",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "oxlint src tests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-agent": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxlint": "^1.78.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,34 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建产物
+lib/
+dist/
+coverage/
+*.tsbuildinfo
+
+# 日志
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# 环境变量与本地配置
+.env
+.env.*
+!.env.example
+.local/
+
+# 编辑器与 IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 临时文件
+.tmp/
+temp/

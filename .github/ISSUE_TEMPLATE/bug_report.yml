@@ -1,0 +1,56 @@
+name: Bug 报告
+description: 报告 dsh-safe-delete 的缺陷或异常行为
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你花时间报告这个 Bug！请尽可能完整地填写以下信息。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 请清晰、简洁地描述发生了什么问题。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 如何复现该问题？请提供最小化示例。
+      placeholder: |
+        1. 执行 `...`
+        2. 观察到 `...`
+        3. 期望 `...`，实际 `...`
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 插件版本
+      description: 例如 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: dsh-version
+    attributes:
+      label: DSH / Node 版本
+      description: 例如 dsh 0.1.0-rc.6 / Node v24.15.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - macOS
+        - Linux
+      default: 0
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与报错信息
+      description: 粘贴相关日志、堆栈或控制台输出（注意脱敏）。
+      render: shell
