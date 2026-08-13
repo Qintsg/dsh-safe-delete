@@ -3,6 +3,17 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)（SemVer）。
 
+## [0.1.1] - 2026-08-13
+
+### 修复
+
+- **未分组会话 fallback**：无工作区（`SessionHeader.cwd` 缺失）且未配置
+  `trashDir` 时不再报错，回退到 `$DSH_HOME/.dsh-safe-delete-trash/` 全局
+  回收区（官方 `dsh-home-paths` 解析），safe_delete / trash_list /
+  restore / purge 四工具同链一致。
+- **回收区位置可见性**：`safe_delete` / `trash_list` 输出增加 `trashRoot`
+  字段，模型与用户始终知晓文件去向。
+
 ## [0.1.0] - 2026-08-13
 
 ### 新增

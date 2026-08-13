@@ -56,15 +56,21 @@ export function applyTrashListTool(ctx: Context, getConfig: () => ResolvedConfig
             },
           },
           total: { type: 'number', required: true },
+          trashRoot: {
+            type: 'string',
+            required: true,
+            description: 'Absolute path of the trash area listed.',
+          },
         },
       },
       render: (_args, value) => {
         if (value.entries.length === 0) {
-          return [{ type: 'text', text: '(trash is empty)' }]
+          return [{ type: 'text', text: `(trash is empty)\ntrash area: ${value.trashRoot}` }]
         }
         const lines = value.entries.map((entry) =>
           `${entry.id}  ${entry.type}  ${entry.deletedAt}  ${entry.originalPath}`)
         lines.push(`total ${value.total}${value.entries.length < value.total ? ` (showing ${value.entries.length})` : ''}`)
+        lines.push(`trash area: ${value.trashRoot}`)
         return [{ type: 'text', text: lines.join('\n') }]
       },
     },
@@ -84,6 +90,7 @@ export function applyTrashListTool(ctx: Context, getConfig: () => ResolvedConfig
           sizeBytes: entry.sizeBytes,
         })),
         total: result.total,
+        trashRoot,
       }
     },
   }))

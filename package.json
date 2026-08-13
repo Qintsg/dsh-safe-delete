@@ -1,6 +1,6 @@
 {
   "name": "dsh-safe-delete",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Safe delete plugin for DeepSeek Harness (DSH): move files to trash / staging area instead of permanent removal, with restore and purge support.",
   "keywords": [
     "deepseek",
@@ -54,12 +54,14 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-home-paths": ">=0.1.0-rc.3 <0.2.0",
     "@deepseek-ai/dsh-settings": ">=0.1.0-rc.2 <0.2.0",
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.2 <0.2.0",
     "@deepseek-ai/dsh-user-approval": ">=0.1.0-rc.2 <0.2.0",
     "@deepseek-ai/schemastery": "^3.18.1"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-home-paths": ">=0.1.0-rc.3 <0.2.0",
     "@types/node": "^24.0.0",
     "oxlint": "^1.78.0",
     "typescript": "^6.0.3",

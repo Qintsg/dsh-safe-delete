@@ -9,6 +9,7 @@
  */
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { randomBytes } from 'node:crypto'
+import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 
 /** 回收区根目录下的文件区子目录名（人类可读，镜像相对路径树）。 */
 export const FILES_DIR_NAME = 'files'
@@ -30,6 +31,9 @@ export const PATH_CASE_INSENSITIVE = process.platform === 'win32' || process.pla
 
 /** 默认回收区目录名（位于工作区之下）。 */
 export const DEFAULT_TRASH_DIR_NAME = '.dsh-trash'
+
+/** 全局回收区目录名（位于 DSH 主目录之下，未分组会话兜底）。 */
+export const GLOBAL_TRASH_DIR_NAME = '.dsh-safe-delete-trash'
 
 /**
  * 生成唯一条目 ID：毫秒时间戳 + 随机后缀。
@@ -77,12 +81,14 @@ export function timestampSuffix(date: Date): string {
 }
 
 /**
- * 解析回收区根目录：显式配置优先，否则用工作区下的 `.dsh-trash`。
+ * 解析回收区根目录：显式配置优先，其次工作区下的 `.dsh-trash`，
+ * 最后回退到 DSH 主目录下的全局回收区 `.dsh-safe-delete-trash`
+ * （未分组/无工作区会话，如 SessionHeader.cwd 缺失的会话）。
  *
  * :param trashDir: 配置的回收区根目录（须为绝对路径或空字符串）
- * :param workspace: 当前会话工作区（绝对路径），trashDir 为空时必填
+ * :param workspace: 当前会话工作区（绝对路径），trashDir 为空时优先使用
  * :returns: 回收区根目录绝对路径
- * :raises ValueError: trashDir 非空但非绝对路径，或两者皆为空时
+ * :raises ValueError: trashDir 非空但非绝对路径时
  */
 export function resolveTrashRoot(trashDir: string, workspace: string | undefined): string {
   if (trashDir !== '') {
@@ -91,10 +97,11 @@ export function resolveTrashRoot(trashDir: string, workspace: string | undefined
     }
     return resolve(trashDir)
   }
-  if (workspace === undefined || workspace === '') {
-    throw new Error('safe-delete: trashDir is empty and no session workspace is available')
+  if (workspace !== undefined && workspace !== '') {
+    return resolve(workspace, DEFAULT_TRASH_DIR_NAME)
   }
-  return resolve(workspace, DEFAULT_TRASH_DIR_NAME)
+  // 未分组/无工作区会话：使用 DSH 主目录下的全局回收区。
+  return dshHomePath(GLOBAL_TRASH_DIR_NAME)
 }
 
 /**

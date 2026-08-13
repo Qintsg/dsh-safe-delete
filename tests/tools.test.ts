@@ -67,6 +67,7 @@ type ToolResult = {
   restored?: { id: string; path: string }[]
   failed?: { id: string; reason: string }[]
   total?: number
+  trashRoot?: string
 }
 
 /** 以工作区上下文执行工具。 */
@@ -128,11 +129,26 @@ describe('safe_delete 工具', () => {
     await expect(runTool(findTool(harness, 'safe_delete'), { paths: [] })).rejects.toThrow(/at least one/)
   })
 
-  it('无工作区且未配置 trashDir 时抛错', async () => {
-    const harness = registerTools({}, allowAllApproval())
-    const file = join(root, 'outside.txt')
-    await writeFile(file, 'x')
-    await expect(findTool(harness, 'safe_delete').execute({ paths: [file] } as never, fakeExec())).rejects.toThrow(/workspace/)
+  it('无工作区时回退到 DSH 主目录全局回收区', async () => {
+    const fakeHome = join(root, 'fake-dsh-home')
+    const prev = process.env.DSH_HOME
+    process.env.DSH_HOME = fakeHome
+    try {
+      const harness = registerTools({}, allowAllApproval())
+      const file = join(root, 'outside.txt')
+      await writeFile(file, 'x')
+      const result = await findTool(harness, 'safe_delete').execute({ paths: [file] } as never, fakeExec()) as ToolResult
+      expect(result.entries).toHaveLength(1)
+      expect(result.trashRoot).toBe(join(fakeHome, '.dsh-safe-delete-trash'))
+      await expectExists(join(fakeHome, '.dsh-safe-delete-trash', 'files', '_external'))
+      await expectMissing(file)
+    } finally {
+      if (prev === undefined) {
+        delete process.env.DSH_HOME
+      } else {
+        process.env.DSH_HOME = prev
+      }
+    }
   })
 })
 

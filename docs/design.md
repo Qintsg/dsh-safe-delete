@@ -25,7 +25,11 @@
 
 ## 3. 回收区布局（工作区 .dsh-trash）
 
-默认位置：**当前会话工作区下的 `.dsh-trash/`**（配置 `trashDir` 可覆盖为任意绝对路径）。
+默认位置：**三级解析链**——显式配置 `trashDir` 优先，其次当前会话工作区下的
+`.dsh-trash/`，最后回退到 **`$DSH_HOME/.dsh-safe-delete-trash/` 全局回收区**
+（未分组/无工作区会话，如 `SessionHeader.cwd` 缺失的会话）。全局回收区由
+官方 `@deepseek-ai/dsh-home-paths` 的 `dshHomePath()` 解析，所有无工作区
+会话共享，四工具同链解析一致；fallback 场景下工具输出标注回收区位置。
 
 ```
 .dsh-trash/                          # 工作区回收区（建议加入 .gitignore）
@@ -194,7 +198,7 @@
 
 | 配置 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `trashDir` | string | `''`（工作区 `.dsh-trash`） | 回收区根目录（绝对路径或空） |
+| `trashDir` | string | `''`（工作区 `.dsh-trash`，无工作区时 `$DSH_HOME/.dsh-safe-delete-trash`） | 回收区根目录（绝对路径或空） |
 | `retentionDays` | number | `30` | 保留天数，`0` 不自动过期 |
 | `maxSizeBytes` | number | `5368709120`（5 GiB） | 回收区大小上限，`0` 不限 |
 | `confirmThreshold` | number | `10` | 单次删除条数确认阈值，`0` 始终确认 |

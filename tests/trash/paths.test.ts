@@ -15,6 +15,7 @@ import {
   EXTERNAL_DIR_NAME,
   FILES_DIR_NAME,
   formatTimestamp,
+  GLOBAL_TRASH_DIR_NAME,
   isPathInside,
   mapToTrashRelative,
   normalizeForCompare,
@@ -64,8 +65,37 @@ describe('resolveTrashRoot', () => {
     expect(() => resolveTrashRoot('trash', WS)).toThrow(/absolute/)
   })
 
-  it('两者皆空时抛出异常', () => {
-    expect(() => resolveTrashRoot('', undefined)).toThrow(/workspace/)
+  it('无工作区时回退到 DSH 主目录下的全局回收区', () => {
+    const fakeHome = resolve('/fake-dsh-home')
+    const prev = process.env.DSH_HOME
+    process.env.DSH_HOME = fakeHome
+    try {
+      expect(resolveTrashRoot('', undefined)).toBe(resolve(fakeHome, GLOBAL_TRASH_DIR_NAME))
+      expect(resolveTrashRoot('', '')).toBe(resolve(fakeHome, GLOBAL_TRASH_DIR_NAME))
+    } finally {
+      if (prev === undefined) {
+        delete process.env.DSH_HOME
+      } else {
+        process.env.DSH_HOME = prev
+      }
+    }
+  })
+
+  it('三级解析链：显式配置 > 工作区 > 全局回收区', () => {
+    const fakeHome = resolve('/fake-dsh-home')
+    const prev = process.env.DSH_HOME
+    process.env.DSH_HOME = fakeHome
+    try {
+      expect(resolveTrashRoot(resolve('/explicit'), WS)).toBe(resolve('/explicit'))
+      expect(resolveTrashRoot('', WS)).toBe(resolve(WS, DEFAULT_TRASH_DIR_NAME))
+      expect(resolveTrashRoot('', undefined)).toBe(resolve(fakeHome, GLOBAL_TRASH_DIR_NAME))
+    } finally {
+      if (prev === undefined) {
+        delete process.env.DSH_HOME
+      } else {
+        process.env.DSH_HOME = prev
+      }
+    }
   })
 })
 

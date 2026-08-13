@@ -91,6 +91,11 @@ export function applySafeDeleteTool(ctx: Context, getConfig: () => ResolvedConfi
             items: { type: 'string' },
             description: 'Paths permanently deleted (permanent mode only).',
           },
+          trashRoot: {
+            type: 'string',
+            required: true,
+            description: 'Absolute path of the trash area used for this operation.',
+          },
           skipped: {
             type: 'array',
             required: true,
@@ -116,7 +121,11 @@ export function applySafeDeleteTool(ctx: Context, getConfig: () => ResolvedConfi
         for (const item of value.skipped) {
           lines.push(`skipped ${item.path}: ${item.reason}`)
         }
-        return [{ type: 'text', text: lines.length > 0 ? lines.join('\n') : '(no entries)' }]
+        if (value.entries.length === 0 && value.purged.length === 0 && value.skipped.length === 0) {
+          lines.push('(no entries)')
+        }
+        lines.push(`trash area: ${value.trashRoot}`)
+        return [{ type: 'text', text: lines.join('\n') }]
       },
     },
     isConcurrencySafe: () => false,
@@ -142,7 +151,7 @@ export function applySafeDeleteTool(ctx: Context, getConfig: () => ResolvedConfi
             skipped.push({ path, reason: error instanceof Error ? error.message : String(error) })
           }
         }
-        return { entries: [], purged, skipped }
+        return { entries: [], purged, skipped, trashRoot }
       }
       // 批量删除达到确认阈值时需审批（confirmThreshold: 0 表示始终确认）。
       const deletable = await countDeletable(args.paths, args.recursive ?? false)
@@ -165,6 +174,7 @@ export function applySafeDeleteTool(ctx: Context, getConfig: () => ResolvedConfi
         })),
         purged: [],
         skipped: result.skipped,
+        trashRoot,
       }
     },
   }))
