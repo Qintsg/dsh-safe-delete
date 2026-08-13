@@ -2,6 +2,8 @@
 
 > Safe delete plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH): move files into a trash area instead of permanent removal, with restore and purge support.
 
+> Developed by Deepseek V4 Flash 0731 with DeepSeek Harness
+
 [中文文档](./README.zh.md) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md) · [License](./LICENSE)
 
 ## Features
