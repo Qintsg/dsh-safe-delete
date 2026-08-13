@@ -12,7 +12,8 @@
 - **Restore**: recover "deleted" files back to their original paths, with `rename` / `skip` / `overwrite` conflict strategies.
 - **Purge**: permanently erase trash contents — always behind an approval prompt.
 - **Delete-command hijacking**: intercepts `rm` / `Remove-Item` in bash/pwsh via the `tools/pre-execute` hook and guides the model to `safe_delete` instead.
-- **Live settings**: all options are editable in the DSH Web settings panel and take effect immediately, no restart.
+- **Workspace-less fallback**: sessions without a workspace fall back to a global trash at `$DSH_HOME/.dsh-safe-delete-trash`.
+- **Settings card with i18n**: a configuration card in DSH Web → Settings → Plugins, fully localized (zh/en), applied live without restart.
 - **Human-friendly trash**: `files/` mirrors the original directory tree, so anyone can drag files back manually.
 
 ## Install
@@ -58,6 +59,8 @@ Or use the structured path: `safe_delete` with `permanent: true`. Both paths sti
 
 ## Trash layout
 
+Trash location resolution (three levels): explicit `trashDir` → workspace `.dsh-trash` → global `$DSH_HOME/.dsh-safe-delete-trash` (workspace-less sessions).
+
 ```
 .dsh-trash/                          # default trash root (session workspace)
 ├── files/                           # human-readable: mirrors original paths
@@ -73,11 +76,11 @@ To recover files manually, open `files/` and drag them back — no tooling requi
 
 ## Configuration
 
-All options are editable live in **DSH Web → Settings → safe-delete**.
+All options are editable live in **DSH Web → Settings → Plugins → Safe Delete** (card is localized to the DSH language).
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `trashDir` | string | `''` (workspace `.dsh-trash`) | Trash root; must be an absolute path when set. |
+| `trashDir` | string | `''` (workspace `.dsh-trash`, or `$DSH_HOME/.dsh-safe-delete-trash` without a workspace) | Trash root; must be an absolute path when set. |
 | `retentionDays` | number | `30` | Auto-expire entries older than this; `0` disables. |
 | `maxSizeBytes` | number | `5368709120` (5 GiB) | Size cap; oldest entries are swept first; `0` disables. |
 | `confirmThreshold` | number | `10` | Batch deletions at/above this count require approval; `0` always confirms. |
@@ -91,8 +94,8 @@ All options are editable live in **DSH Web → Settings → safe-delete**.
 pnpm install       # install dependencies
 pnpm test          # run unit tests (vitest)
 pnpm lint          # run oxlint
-pnpm build         # compile TypeScript to lib/
-pnpm typecheck     # type-check the host build
+pnpm build         # compile host + client halves to lib/
+pnpm typecheck     # type-check both host and client builds
 ```
 
 ## Project Structure
@@ -100,12 +103,15 @@ pnpm typecheck     # type-check the host build
 ```
 dsh-safe-delete/
 ├── src/
-│   ├── index.ts        # plugin entry (tools, hijack, settings wiring)
+│   ├── index.ts        # plugin entry (tools, hijack, settings wiring, route install)
 │   ├── config.ts       # config schema
+│   ├── settings-route.ts # settings card backend route (GET/POST)
 │   ├── hijack.ts       # delete-command detection (tools/pre-execute)
 │   ├── approval.ts     # approval gate (ctx.approval)
 │   ├── trash/          # paths / manifest / move / ops (pure logic)
-│   └── tools/          # safe_delete / trash_list / restore / purge
+│   ├── tools/          # safe_delete / trash_list / restore / purge
+│   └── client/         # browser half: settings card + i18n
+├── scripts/build-client.mjs  # client bundle (ModuleLoader wrapper)
 ├── tests/              # unit tests (vitest)
 ├── docs/design.md      # design document
 ├── docs/releasing.md   # release guide (OIDC publishing)

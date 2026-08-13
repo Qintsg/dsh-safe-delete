@@ -185,14 +185,27 @@
   与工具内确认两条路径）。
 - `confirmThreshold: 0` 表示始终确认。
 
-## 8. DSH Web 设置面板（settings 集成）
+## 8. DSH Web 设置面板（设置卡片 + host 路由）
 
-- 注册命名空间 `safe-delete`（`settingsNamespace('safe-delete')`），
-  schema 经 `describe()` 由 DSH Web 内置设置面板**自动渲染表单**。
-- `applies: 'live'`（实时生效）：配置变更 → `settings/updated` → `watch`
-  回调 → 热重建（回收区路径解析、劫持参数、阈值）。
-- 使用官方 `installSettingsSection` 辅助：settings 服务缺失时回退到组合配置。
-- 实现阶段验证点：确认 dsh-web-app 内置设置面板确实渲染该命名空间。
+- Host 侧注册命名空间 `safe-delete`（`settingsNamespace` + `installSettingsSection`），
+  `applies: 'live'`：配置变更 → `settings/updated` → `watch` → 热重建
+  （回收区路径解析、劫持参数、阈值），无需重启。
+- **设置卡片（client 半区）**：官方 `settings.plugin.item` 卡片位需插件
+  显式注册（非自动渲染）——本插件注册 `id: 'safe-delete'` 卡片，渲染
+  7 项配置表单（文本/数字/下拉/开关），文案跟随 DSH 语言（i18n 字典）。
+- **读写通道**：`/_dsh/safe-delete/settings` 同源 HTTP 路由
+  （GET 快照 / POST 保存），经 settings 服务的 schema + validate 双重校验；
+  revision 冲突返回 409、跨源返回 403。
+- client 半区构建：tsc（commonjs + react-jsx）→ 多文件合并内联
+  （scripts/build-client.mjs）→ `lib/client.js`（ModuleLoader 包装），
+  零官方 client 包依赖。
+
+## 8.1 实测验证记录（0.1.x）
+
+- 0.1.2：卡片 + 路由首版（路由注册时序 bug → 0.1.3 修复 inject 等待）
+- 0.1.4：i18n 字典（locale 字段修正 → 0.1.6 用 `LocaleSnapshot.active`）
+- 0.1.5：多文件打包合并（i18n.ts 引入的 require 解析问题）
+- 0.1.7：文案细节修正
 
 ## 9. 配置项汇总
 
@@ -210,34 +223,41 @@
 
 ```
 src/
-├── index.ts          # 入口：settings 注册、工具注册、劫持钩子、systemPrompt
-├── config.ts         # 配置 schema + 校验
+├── index.ts             # 入口：settings 注册、工具注册、劫持钩子、路由安装
+├── config.ts            # 配置 schema + 校验
+├── settings-route.ts    # 设置卡片后端路由（GET 快照 / POST 保存，同源校验）
+├── hijack.ts            # tools/pre-execute 删除命令检测（bash/pwsh 正则 + 逃生标记）
+├── approval.ts          # ctx.approval 确认封装（fail-closed）
 ├── trash/
-│   ├── paths.ts      # 回收区路径解析（工作区解析、条目 ID、相对路径映射）
-│   ├── manifest.ts   # entries/meta 读写、索引重建、sweep（惰性清理）
-│   ├── move.ts       # 跨盘移动（rename → copy+delete）、Windows 处理
-│   └── ops.ts        # safeDelete / restore / purge / list 核心逻辑（纯函数，单测全覆盖）
-├── hijack.ts         # tools/pre-execute 删除命令检测（bash/pwsh 正则表 + DSH_FORCE_DELETE 逃生标记识别）
-├── approval.ts       # ctx.approval 确认封装
-└── tools/
-    ├── safe-delete.ts
-    ├── trash-list.ts
-    ├── restore.ts
-    └── purge.ts
+│   ├── paths.ts         # 回收区路径解析（三级链：显式 > 工作区 > DSH_HOME）、条目 ID、映射
+│   ├── manifest.ts      # entries/meta 读写、索引重建、sweep（惰性清理）
+│   ├── move.ts          # 跨盘移动（rename → copy+delete）、Windows 处理
+│   └── ops.ts           # safeDelete / restore / purge / list 核心逻辑（纯函数，单测全覆盖）
+├── tools/
+│   ├── safe-delete.ts
+│   ├── trash-list.ts
+│   ├── restore.ts
+│   └── purge.ts
+└── client/              # 浏览器半区（设置卡片）
+    ├── index.tsx        # settings.plugin.item 卡片注册 + 表单
+    └── i18n.ts          # 中英文案字典（跟随 DSH 语言）
+scripts/
+└── build-client.mjs     # client 多文件合并打包（ModuleLoader 包装）
 ```
 
 ## 11. 实现阶段计划
 
-- [ ] M1：`config.ts` + `trash/paths.ts` + `trash/move.ts` 基础设施（纯函数，单测）
-- [ ] M2：`trash/manifest.ts` + `trash/ops.ts` 核心操作（safeDelete/restore/purge/list + sweep）
-- [ ] M3：四个工具注册 + systemPrompt 引导
-- [ ] M4：`hijack.ts` 删除命令检测 + settings 集成（Web 面板 + 实时生效）
-- [ ] M5：确认机制（approval）+ 端到端测试
-- [ ] M6：README 使用文档、examples、发布准备
+- [x] M1：`config.ts` + `trash/paths.ts` + `trash/move.ts` 基础设施（纯函数，单测）
+- [x] M2：`trash/manifest.ts` + `trash/ops.ts` 核心操作（safeDelete/restore/purge/list + sweep）
+- [x] M3：四个工具注册 + systemPrompt 引导
+- [x] M4：`hijack.ts` 删除命令检测 + settings 集成（Web 面板 + 实时生效）
+- [x] M5：确认机制（approval）+ 端到端测试
+- [x] M6：README 使用文档、examples、发布准备
+- [x] M7（追加）：client 设置卡片 + i18n + 发布链路（0.1.x 系列）
 
 ## 12. 实现阶段验证点
 
-- [ ] `ctx.approval` 的调用接口（工具内确认 vs pre-execute ask）
-- [ ] dsh-web-app 内置设置面板是否自动渲染 `safe-delete` 命名空间
-- [ ] `exec.agent.session.header.cwd` 在工具执行中的可用性（工作区解析）
-- [ ] `deleteHijack` 正则在实际 bash/pwsh 调用中的误报率
+- [x] `ctx.approval` 的调用接口（工具内确认，fail-closed；`deleteHijack: ask` 决策）
+- [x] 设置渲染：`settings.plugin.item` 需显式注册卡片（非自动），已自研卡片 + 路由
+- [x] `exec.agent.session.header.cwd` 在工具执行中的可用性（工作区解析 + fallback）
+- [x] `deleteHijack` 正则在实际 bash/pwsh 调用中的误报率（含 pwsh 嵌入 bash -c 检测）

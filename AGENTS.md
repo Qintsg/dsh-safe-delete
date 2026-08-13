@@ -34,21 +34,31 @@ pnpm typecheck     # 类型检查（host 与 client 双端）
 ## 目录结构
 
 ```
-src/            # TypeScript 源码
-  index.ts      # 插件入口（host 半区）
-  config.ts     # 配置 schema（schemastery）
-  client/       # 浏览器端代码（client 半区，可选）
-tests/          # 单元测试
-docs/           # 设计与使用文档
-examples/       # 使用示例
-.github/        # CI 工作流与社区模板
+src/              # TypeScript 源码
+  index.ts        # 插件入口（host 半区）
+  config.ts       # 配置 schema（schemastery）
+  settings-route.ts # 设置卡片后端路由
+  hijack.ts       # 删除命令检测
+  approval.ts     # 审批封装
+  trash/          # 回收区核心逻辑（paths/manifest/move/ops）
+  tools/          # 四个 agent 工具
+  client/         # 浏览器端代码（设置卡片 + i18n）
+scripts/          # 构建脚本（build-client.mjs）
+tests/            # 单元测试
+docs/             # 设计与使用文档
+examples/         # 使用示例
+.github/          # CI 工作流与社区模板
 ```
 
 ## 架构约定
 
-- 插件通过 `peerDependencies` 依赖 `cordis`、`schemastery`、`@deepseek-ai/dsh-agent`。
-- Host 半区提供 Service / Tool；Client 半区通过 Slot 注册浏览器 UI。
-- 所有 Service、Tool、事件监听、定时器必须注册到当前 Fiber，可逆释放。
+- 插件通过 `peerDependencies` 依赖 `@deepseek-ai/cordis`、`schemastery`、
+  `dsh-home-paths`、`dsh-settings`、`dsh-tools`、`dsh-user-approval` 等。
+- Host 半区提供 Service / Tool / 设置路由；Client 半区经 Slot 注册设置卡片，
+  文案跟随 DSH 语言（`src/client/i18n.ts` 字典）。
+- 所有 Service、Tool、事件监听、定时器、路由必须注册到当前 Fiber，可逆释放。
+- client 产物构建：`tsc -p tsconfig.client.json` → `scripts/build-client.mjs`
+  （多文件合并内联为 ModuleLoader 包装，零官方 client 包依赖）。
 
 ## 官方文档（重点参考）
 

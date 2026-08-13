@@ -17,7 +17,8 @@ plugins:
   dsh-safe-delete:
     $include: node_modules/dsh-safe-delete/lib/index.js
     config:
-      # 回收区根目录（绝对路径）；留空 = 会话工作区下 .dsh-trash
+      # 回收区根目录（绝对路径）；留空 = 会话工作区 .dsh-trash，
+      # 无工作区时回退 $DSH_HOME/.dsh-safe-delete-trash
       trashDir: ""
       # 保留天数，0 = 不按时间清理
       retentionDays: 30

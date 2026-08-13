@@ -12,7 +12,8 @@
 - **恢复**：将已"删除"的文件恢复到原路径，支持 `rename` / `skip` / `overwrite` 三种冲突策略。
 - **彻底清除**：永久清空回收区内容——任何清除操作都需经过审批确认。
 - **删除命令劫持**：经 `tools/pre-execute` 钩子拦截 bash/pwsh 中的 `rm` / `Remove-Item`，引导模型改用 `safe_delete`。
-- **设置实时生效**：全部选项可在 DSH Web 设置面板中修改，无需重启即生效。
+- **无工作区兜底**：未分组/无工作区会话回退到全局回收区 `$DSH_HOME/.dsh-safe-delete-trash`。
+- **i18n 设置卡片**：DSH Web → 设置 → 插件中的配置卡片，文案跟随 DSH 语言（中/英），修改即实时生效。
 - **人类友好回收区**：`files/` 镜像原始目录结构，任何人都可以直接拖回文件。
 
 ## 安装
@@ -59,6 +60,9 @@ $env:DSH_FORCE_DELETE=1; Remove-Item -Recurse -Force node_modules
 
 ## 回收区结构
 
+回收区位置三级解析：显式 `trashDir` → 工作区 `.dsh-trash` → 全局
+`$DSH_HOME/.dsh-safe-delete-trash`（未分组/无工作区会话）。
+
 ```
 .dsh-trash/                          # 默认回收区（会话工作区下）
 ├── files/                           # 人类可读：镜像原始路径
@@ -74,11 +78,11 @@ $env:DSH_FORCE_DELETE=1; Remove-Item -Recurse -Force node_modules
 
 ## 配置项
 
-全部选项可在 **DSH Web → 设置 → safe-delete** 中实时修改。
+全部选项可在 **DSH Web → 设置 → 插件 → 安全删除** 中实时修改（卡片文案跟随 DSH 语言）。
 
 | 配置 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `trashDir` | string | `''`（工作区 `.dsh-trash`） | 回收区根目录；设置时须为绝对路径 |
+| `trashDir` | string | `''`（工作区 `.dsh-trash`；无工作区时 `$DSH_HOME/.dsh-safe-delete-trash`） | 回收区根目录；设置时须为绝对路径 |
 | `retentionDays` | number | `30` | 超过该天数的条目自动清理；`0` 关闭 |
 | `maxSizeBytes` | number | `5368709120`（5 GiB） | 大小上限，超出后从旧到新清理；`0` 关闭 |
 | `confirmThreshold` | number | `10` | 单次删除达到该条数需审批；`0` 始终确认 |
@@ -92,8 +96,8 @@ $env:DSH_FORCE_DELETE=1; Remove-Item -Recurse -Force node_modules
 pnpm install       # 安装依赖
 pnpm test          # 运行单元测试（vitest）
 pnpm lint          # 运行 oxlint
-pnpm build         # 编译 TypeScript 到 lib/
-pnpm typecheck     # 类型检查（host 构建）
+pnpm build         # 编译 host 与 client 双端到 lib/
+pnpm typecheck     # 类型检查（host 与 client 双端）
 ```
 
 ## 项目结构
@@ -101,16 +105,25 @@ pnpm typecheck     # 类型检查（host 构建）
 ```
 dsh-safe-delete/
 ├── src/
-│   ├── index.ts        # 插件入口（工具/劫持/settings 接线）
+│   ├── index.ts        # 插件入口（工具/劫持/settings 接线/路由安装）
 │   ├── config.ts       # 配置 schema
+│   ├── settings-route.ts # 设置卡片后端路由（GET 快照 / POST 保存）
 │   ├── hijack.ts       # 删除命令检测（tools/pre-execute）
 │   ├── approval.ts     # 审批门禁（ctx.approval）
 │   ├── trash/          # paths / manifest / move / ops（纯逻辑）
-│   └── tools/          # safe_delete / trash_list / restore / purge
+│   ├── tools/          # safe_delete / trash_list / restore / purge
+│   └── client/         # 浏览器半区：设置卡片 + i18n
+├── scripts/build-client.mjs  # client 打包（ModuleLoader 包装）
 ├── tests/              # 单元测试（vitest）
 ├── docs/design.md      # 设计文档
+├── docs/releasing.md   # 发版指南（OIDC 发布）
 └── examples/           # 组合配置示例
 ```
+
+## 发版
+
+版本发布经 GitHub Actions + npm trusted publishing（OIDC）全自动完成——
+无需 token、无需 OTP。详见 [docs/releasing.md](./docs/releasing.md)。
 
 ## 开源协议
 
