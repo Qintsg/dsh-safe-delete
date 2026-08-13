@@ -1,6 +1,6 @@
 {
   "name": "dsh-safe-delete",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Safe delete plugin for DeepSeek Harness (DSH): move files to trash / staging area instead of permanent removal, with restore and purge support.",
   "keywords": [
     "deepseek",
@@ -32,6 +32,10 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -43,13 +47,19 @@
     "README.zh.md",
     "LICENSE"
   ],
+  "dsh": {
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/build-client.mjs",
     "prepack": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "oxlint src tests",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "lint": "oxlint src tests scripts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
@@ -58,11 +68,14 @@
     "@deepseek-ai/dsh-settings": ">=0.1.0-rc.2 <0.2.0",
     "@deepseek-ai/dsh-tools": ">=0.1.0-rc.2 <0.2.0",
     "@deepseek-ai/dsh-user-approval": ">=0.1.0-rc.2 <0.2.0",
-    "@deepseek-ai/schemastery": "^3.18.1"
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": "^18.2.0"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-home-paths": ">=0.1.0-rc.3 <0.2.0",
     "@types/node": "^24.0.0",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0",
     "oxlint": "^1.78.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"

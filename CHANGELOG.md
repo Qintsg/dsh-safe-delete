@@ -3,6 +3,20 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)（SemVer）。
 
+## [0.1.2] - 2026-08-13
+
+### 新增
+
+- **DSH Web 设置卡片（client 半区）**：设置 → 插件 → 「安全删除」卡片，
+  7 项配置全部可视化编辑（文本/数字/下拉/开关），保存即实时生效。
+- **设置后端路由**：`/_dsh/safe-delete/settings` 同源 HTTP 接口
+  （GET 快照 / POST 保存，revision 冲突 409、跨源 403、非法请求 400）。
+- client 半区自包含构建（tsc + ModuleLoader 包装），不依赖官方 client 包。
+
+### 测试
+
+- 路由层单测 12 个（快照/保存/冲突/同源/方法校验/路由注册）。
+
 ## [0.1.1] - 2026-08-13
 
 ### 修复

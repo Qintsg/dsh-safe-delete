@@ -11,6 +11,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { Config, resolveConfig, type Config as ConfigType, type ResolvedConfig } from './config.js'
 import { applyDeleteHijack } from './hijack.js'
+import { installSettingsRoute } from './settings-route.js'
 import { applyPurgeTool } from './tools/purge.js'
 import { applyRestoreTool } from './tools/restore.js'
 import { applySafeDeleteTool } from './tools/safe-delete.js'
@@ -79,4 +80,6 @@ export function apply(ctx: Context, config: ConfigType): void {
   applyRestoreTool(ctx, getConfig)
   applyPurgeTool(ctx, getConfig)
   applyDeleteHijack(ctx, () => getConfig().deleteHijack)
+  // DSH Web 设置卡片的后端路由（webServer 服务存在时生效）。
+  installSettingsRoute(ctx)
 }
