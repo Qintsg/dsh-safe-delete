@@ -2,6 +2,8 @@
 
 > [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）安全删除插件：文件删除时移入回收区而非直接销毁，支持恢复与彻底清除。
 
+> 通过DeepSeek Harness使用Deepseek V4 Flash 0731开发  
+
 [English](./README.md) · [更新日志](./CHANGELOG.md) · [参与贡献](./CONTRIBUTING.md) · [开源协议](./LICENSE)
 
 ## 功能特性
