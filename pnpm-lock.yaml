@@ -20,6 +20,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: '>=0.1.0-rc.2 <0.2.0'
         version: 0.1.0-rc.2(20e4cc41bb4b682a5f9b62ab04f123c5)
+      '@deepseek-ai/dsh-user-approval':
+        specifier: '>=0.1.0-rc.2 <0.2.0'
+        version: 0.1.0-rc.2(dbdaba06c174c5e30e3a58edf3cc27a9)
       '@deepseek-ai/schemastery':
         specifier: ^3.18.1
         version: 3.18.1

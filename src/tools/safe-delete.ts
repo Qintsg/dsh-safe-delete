@@ -9,7 +9,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { lstat } from 'node:fs/promises'
 import type { ResolvedConfig } from '../config.js'
+import { requestApproval } from '../approval.js'
 import { removeRecursive } from '../trash/move.js'
 import { safeDelete } from '../trash/ops.js'
 import { resolveTrashRoot } from '../trash/paths.js'
@@ -19,6 +21,27 @@ export interface SafeDeleteToolArgs {
   paths: string[]
   recursive?: boolean
   permanent?: boolean
+}
+
+/**
+ * 预检可删除的有效条目数（排除不存在、未开 recursive 的目录）。
+ *
+ * :param paths: 待删除路径
+ * :param recursive: 是否允许删除目录
+ * :returns: 有效条目数
+ */
+async function countDeletable(paths: string[], recursive: boolean): Promise<number> {
+  let count = 0
+  for (const path of paths) {
+    try {
+      const info = await lstat(path)
+      if (info.isDirectory() && !recursive) continue
+      count += 1
+    } catch {
+      // 不存在：跳过。
+    }
+  }
+  return count
 }
 
 /**
@@ -105,7 +128,10 @@ export function applySafeDeleteTool(ctx: Context, getConfig: () => ResolvedConfi
       const workspace = exec.agent?.session.header.cwd
       const trashRoot = resolveTrashRoot(config.trashDir, workspace)
       if (args.permanent === true) {
-        // 永久删除：跳过回收区直接真删（审批门禁在 M5 接入）。
+        // 永久删除（不可逆）：必须经审批确认。
+        if (!(await requestApproval(ctx, exec, `永久删除 ${args.paths.length} 个路径（跳过回收区）: ${args.paths.join(', ')}`))) {
+          throw new Error('permanent deletion was not approved')
+        }
         const purged: string[] = []
         const skipped: { path: string; reason: string }[] = []
         for (const path of args.paths) {
@@ -117,6 +143,12 @@ export function applySafeDeleteTool(ctx: Context, getConfig: () => ResolvedConfi
           }
         }
         return { entries: [], purged, skipped }
+      }
+      // 批量删除达到确认阈值时需审批（confirmThreshold: 0 表示始终确认）。
+      const deletable = await countDeletable(args.paths, args.recursive ?? false)
+      const needsApproval = config.confirmThreshold === 0 || deletable >= config.confirmThreshold
+      if (needsApproval && !(await requestApproval(ctx, exec, `移入回收区 ${deletable} 个路径: ${args.paths.join(', ')}`))) {
+        throw new Error('deletion was not approved')
       }
       const result = await safeDelete({
         trashRoot,

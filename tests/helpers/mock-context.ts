@@ -32,6 +32,11 @@ export interface FakeSettingsScope<T> {
   replace(section: object): Promise<void>
 }
 
+/** Fake approval 服务形态。 */
+export interface FakeApproval {
+  request(req: object): Promise<unknown>
+}
+
 /** Mock 上下文与收集器。 */
 export interface MockHarness {
   ctx: Context
@@ -73,13 +78,14 @@ export function createFakeSettings<T>(initial: T): {
 
 /**
  * 创建 mock Cordis 上下文：tools.register / systemPrompt.section /
- * on / inject 均被收集或注入。
+ * on / inject / get 均被收集或注入。
  *
  * :param settings: 可选 fake settings scope；提供后 inject(['settings'])
  *   会回调并返回该 scope
+ * :param approval: 可选 fake approval 服务；提供后 ctx.get('approval') 返回之
  * :returns: mock 上下文与收集结果
  */
-export function createMockHarness(settings?: FakeSettingsScope<unknown>): MockHarness {
+export function createMockHarness(settings?: FakeSettingsScope<unknown>, approval?: FakeApproval): MockHarness {
   const tools: MockToolDef[] = []
   const sections: MockSection[] = []
   const events = new Map<string, MockListener[]>()
@@ -104,6 +110,10 @@ export function createMockHarness(settings?: FakeSettingsScope<unknown>): MockHa
       events.set(event, list)
     },
     fiber: { state: 0 },
+    get: (name: string): unknown => {
+      if (name === 'approval') return approval
+      return undefined
+    },
     inject: (keys: string[], callback: (scoped: Context) => void): void => {
       if (settings === undefined || !keys.includes('settings')) return
       callback({

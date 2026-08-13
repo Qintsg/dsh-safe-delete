@@ -10,6 +10,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { ResolvedConfig } from '../config.js'
+import { requestApproval } from '../approval.js'
 import { purgeEntries } from '../trash/ops.js'
 import { resolveTrashRoot } from '../trash/paths.js'
 
@@ -85,7 +86,11 @@ export function applyPurgeTool(ctx: Context, getConfig: () => ResolvedConfig): v
       const config = getConfig()
       const workspace = exec.agent?.session.header.cwd
       const trashRoot = resolveTrashRoot(config.trashDir, workspace)
-      // 确认门禁在 M5 接入（tools/pre-execute 的 ask 或工具内审批）。
+      // 彻底清除（不可逆）：任何调用都必须经审批确认。
+      const label = args.all === true ? '清空整个回收区' : `彻底清除 ${args.ids?.length ?? 0} 个条目`
+      if (!(await requestApproval(ctx, exec, `${label}: ${args.ids?.join(', ') ?? 'all'}`))) {
+        throw new Error('purge was not approved')
+      }
       const result = await purgeEntries({ trashRoot, ids: args.ids, all: args.all === true })
       return result
     },

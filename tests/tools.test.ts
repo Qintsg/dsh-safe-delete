@@ -12,7 +12,14 @@ import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { apply } from '../src/index.js'
 import { Config } from '../src/config.js'
-import { createMockHarness, fakeExec, findTool, type MockToolDef } from './helpers/mock-context.js'
+import {
+  createMockHarness,
+  fakeExec,
+  findTool,
+  type FakeApproval,
+  type MockHarness,
+  type MockToolDef,
+} from './helpers/mock-context.js'
 
 /** 测试根目录（含回收区与工作区）。 */
 let root: string
@@ -31,8 +38,8 @@ afterEach(async () => {
 })
 
 /** 注册插件并返回 mock harness。 */
-function registerTools(config: object = {}): MockHarness {
-  const harness = createMockHarness()
+function registerTools(config: object = {}, approval?: FakeApproval): MockHarness {
+  const harness = createMockHarness(undefined, approval)
   apply(harness.ctx, Config(config))
   return harness
 }
@@ -45,6 +52,11 @@ async function expectExists(path: string): Promise<void> {
 /** 断言路径不存在。 */
 async function expectMissing(path: string): Promise<void> {
   await expect(access(path)).rejects.toThrow()
+}
+
+/** 一律放行的 fake approval。 */
+function allowAllApproval(): FakeApproval {
+  return { request: async () => 'allowed-once' }
 }
 
 /** 工具执行结果类型。 */
@@ -79,7 +91,7 @@ describe('插件注册', () => {
 
 describe('safe_delete 工具', () => {
   it('将文件移入回收区并返回条目', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     const file = join(ws, 'a.txt')
     await writeFile(file, 'hello')
     const result = await runTool(findTool(harness, 'safe_delete'), { paths: [file] })
@@ -93,7 +105,7 @@ describe('safe_delete 工具', () => {
   })
 
   it('目录需 recursive', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     const dir = join(ws, 'd')
     await mkdir(dir)
     const result = await runTool(findTool(harness, 'safe_delete'), { paths: [dir] })
@@ -102,7 +114,7 @@ describe('safe_delete 工具', () => {
   })
 
   it('permanent 模式直接真删', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     const file = join(ws, 'p.txt')
     await writeFile(file, 'x')
     const result = await runTool(findTool(harness, 'safe_delete'), { paths: [file], permanent: true })
@@ -112,12 +124,12 @@ describe('safe_delete 工具', () => {
   })
 
   it('空 paths 抛错', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     await expect(runTool(findTool(harness, 'safe_delete'), { paths: [] })).rejects.toThrow(/at least one/)
   })
 
   it('无工作区且未配置 trashDir 时抛错', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     const file = join(root, 'outside.txt')
     await writeFile(file, 'x')
     await expect(findTool(harness, 'safe_delete').execute({ paths: [file] } as never, fakeExec())).rejects.toThrow(/workspace/)
@@ -126,7 +138,7 @@ describe('safe_delete 工具', () => {
 
 describe('trash_list 工具', () => {
   it('列出回收区并支持 pattern 过滤', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     for (const name of ['a.tmp', 'b.txt']) {
       await writeFile(join(ws, name), name)
       await runTool(findTool(harness, 'safe_delete'), { paths: [join(ws, name)] })
@@ -140,7 +152,7 @@ describe('trash_list 工具', () => {
 
 describe('restore 工具', () => {
   it('恢复到原路径', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     const file = join(ws, 'r.txt')
     await writeFile(file, 'data')
     await runTool(findTool(harness, 'safe_delete'), { paths: [file] })
@@ -151,7 +163,7 @@ describe('restore 工具', () => {
   })
 
   it('目标存在时默认 rename 冲突处理', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     const file = join(ws, 'c.txt')
     await writeFile(file, 'old')
     await runTool(findTool(harness, 'safe_delete'), { paths: [file] })
@@ -162,14 +174,14 @@ describe('restore 工具', () => {
   })
 
   it('ids 与 pattern 同时给出时抛错', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     await expect(runTool(findTool(harness, 'restore'), { ids: ['a'], pattern: '*.txt' })).rejects.toThrow(/mutually exclusive/)
   })
 })
 
 describe('purge 工具', () => {
   it('按 ids 彻底清除', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     const file = join(ws, 'p.txt')
     await writeFile(file, 'x')
     await runTool(findTool(harness, 'safe_delete'), { paths: [file] })
@@ -181,7 +193,7 @@ describe('purge 工具', () => {
   })
 
   it('all 清空回收区', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     await writeFile(join(ws, 'x.txt'), 'x')
     await runTool(findTool(harness, 'safe_delete'), { paths: [join(ws, 'x.txt')] })
     const result = await runTool(findTool(harness, 'purge'), { all: true })
@@ -189,7 +201,7 @@ describe('purge 工具', () => {
   })
 
   it('既无 ids 也无 all 时抛错', async () => {
-    const harness = registerTools()
+    const harness = registerTools({}, allowAllApproval())
     await expect(runTool(findTool(harness, 'purge'), {})).rejects.toThrow(/ids or all/)
   })
 })
