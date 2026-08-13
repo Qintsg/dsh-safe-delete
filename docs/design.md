@@ -1,8 +1,9 @@
 # dsh-safe-delete 设计文档
 
-> 版本：v2（2026-08-13）· 状态：设计定稿，待实现
+> 版本：v2.1（2026-08-13）· 状态：设计定稿，待实现
 > v2 变更：回收区移至工作区 `.dsh-trash`；新增删除命令劫持（`tools/pre-execute`）；
 > 新增 DSH Web 设置面板 + 实时生效（settings 服务）；恢复冲突策略细化。
+> v2.1 变更：新增逃生舱设计（`DSH_FORCE_DELETE` 命令标记 + `safe_delete permanent` 参数 + 拒绝引导），防阻断型 bug。
 
 ## 1. 目标与范围
 
@@ -74,7 +75,8 @@
 // 参数
 {
   "paths": ["<绝对路径>", ...],       // 必填，1..N 个文件或目录
-  "recursive": true                    // 可选，目录删除需为 true
+  "recursive": true,                   // 可选，目录删除需为 true
+  "permanent": false                   // 可选，true 时跳过回收区直接真删（仍走审批确认）
 }
 // 输出
 { "entries": [{ "id", "originalPath", "trashPath", "deletedAt" }], "skipped": [{ "path", "reason" }] }
@@ -83,6 +85,8 @@
 - 不存在/越界的路径记入 `skipped`，不中断整体。
 - 单次条目数 ≥ `confirmThreshold`（默认 10）时经审批确认后执行。
 - 同名冲突：`files/<relpath>` 已存在 → 追加 `.yyyyMMddTHHmmss` 后缀。
+- `permanent: true`：直接永久删除（`purge` 同级不可逆操作，必须经审批确认），
+  用于模型明确表达"不要进回收区"的场景（如清理 `node_modules`、构建产物）。
 
 ### 4.2 trash_list
 
@@ -142,6 +146,25 @@
 启发式局限（文档明示）：管道/变量拼接等复杂命令可能漏检；正则检测
 不构成安全边界，仅作防误删的辅助手段。
 
+### 逃生舱（防阻断设计）
+
+`block` 模式下模型可能确需永久删除（清理 `node_modules`、清空构建产物），
+或 `safe_delete` 因回收区异常失败——若无逃生路径，模型会被卡死在
+"想真删却删不掉"的状态，形成阻断型 bug。为此提供三层逃生机制：
+
+1. **命令级强制标记**：命令前缀携带 `DSH_FORCE_DELETE=1` 时检测器放行，
+   执行真实删除。
+   - bash：`DSH_FORCE_DELETE=1 rm -rf node_modules`
+   - pwsh：`$env:DSH_FORCE_DELETE=1; Remove-Item -Recurse -Force node_modules`
+   - 标记必须显式（模型不会无意打出），故不会成为常态绕过路径；
+     同时是劫持误报时的保险丝。
+2. **工具级永久删除**：`safe_delete` 的 `permanent: true`（见 §4.1），
+   结构化表达"不进回收区"，仍走审批确认。
+3. **拒绝信息引导**：`block` 的 deny reason 明确写出两条逃生路径，
+   避免模型被拦后反复重试同一命令形成循环。
+
+逃生路径的永久删除仍受审批约束（见 §7），逃生不等于裸奔。
+
 ## 6. 保留策略（惰性清理 + 大小上限）
 
 每次工具操作（safe_delete / restore / purge）前顺带执行 `sweep()`：
@@ -190,7 +213,7 @@ src/
 │   ├── manifest.ts   # entries/meta 读写、索引重建、sweep（惰性清理）
 │   ├── move.ts       # 跨盘移动（rename → copy+delete）、Windows 处理
 │   └── ops.ts        # safeDelete / restore / purge / list 核心逻辑（纯函数，单测全覆盖）
-├── hijack.ts         # tools/pre-execute 删除命令检测（bash/pwsh 正则表）
+├── hijack.ts         # tools/pre-execute 删除命令检测（bash/pwsh 正则表 + DSH_FORCE_DELETE 逃生标记识别）
 ├── approval.ts       # ctx.approval 确认封装
 └── tools/
     ├── safe-delete.ts
