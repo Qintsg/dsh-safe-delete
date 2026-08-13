@@ -7,7 +7,7 @@
  * @author Qintsg
  * @date 2026-08-13
  */
-import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { randomBytes } from 'node:crypto'
 
 /** 回收区根目录下的文件区子目录名（人类可读，镜像相对路径树）。 */
@@ -49,20 +49,20 @@ function pad(value: number): string {
 }
 
 /**
- * 格式化时间为 `yyyyMMddTHHmmss`（本地时区）。
+ * 格式化时间为 `yyyyMMddTHHmmss`（UTC，与 ISO deletedAt 保持一致）。
  *
  * :param date: 待格式化时间
  * :returns: 时间戳字符串
  */
 export function formatTimestamp(date: Date): string {
   return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate()),
+    date.getUTCFullYear(),
+    pad(date.getUTCMonth() + 1),
+    pad(date.getUTCDate()),
     'T',
-    pad(date.getHours()),
-    pad(date.getMinutes()),
-    pad(date.getSeconds()),
+    pad(date.getUTCHours()),
+    pad(date.getUTCMinutes()),
+    pad(date.getUTCSeconds()),
   ].join('')
 }
 
@@ -172,4 +172,22 @@ export function trashMetaPath(trashRoot: string, id: string): string {
  */
 export function conflictPath(base: string, suffix: string): string {
   return `${base}${suffix}`
+}
+
+/**
+ * 生成恢复时的候选目标路径序列：原路径、`name (1).ext`、`name (2).ext` ……
+ * 调用方按序取第一个不存在的路径。
+ *
+ * :param originalPath: 原始绝对路径
+ * :returns: 候选路径序列（首个为原路径）
+ */
+export function restoreCandidateNames(originalPath: string): string[] {
+  const dir = dirname(originalPath)
+  const ext = extname(originalPath)
+  const stem = ext === '' ? basename(originalPath) : basename(originalPath, ext)
+  const candidates = [originalPath]
+  for (let index = 1; index <= 99; index += 1) {
+    candidates.push(join(dir, `${stem} (${index})${ext}`))
+  }
+  return candidates
 }

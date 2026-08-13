@@ -32,20 +32,22 @@ const OUTSIDE = resolve('/outside')
 
 describe('entryId / formatTimestamp / timestampSuffix', () => {
   it('entryId 形如时间戳-随机后缀', () => {
-    const id = entryId(new Date(2026, 7, 13, 22, 30, 45))
+    const id = entryId(new Date(Date.UTC(2026, 7, 13, 22, 30, 45)))
     expect(id).toMatch(/^20260813T223045-[0-9a-f]{4}$/)
   })
 
   it('entryId 两次生成不同', () => {
-    expect(entryId(new Date(2026, 7, 13, 22, 30, 45))).not.toBe(entryId(new Date(2026, 7, 13, 22, 30, 45)))
+    expect(entryId(new Date(Date.UTC(2026, 7, 13, 22, 30, 45)))).not.toBe(
+      entryId(new Date(Date.UTC(2026, 7, 13, 22, 30, 45))),
+    )
   })
 
   it('formatTimestamp 补零', () => {
-    expect(formatTimestamp(new Date(2026, 0, 2, 3, 4, 5))).toBe('20260102T030405')
+    expect(formatTimestamp(new Date(Date.UTC(2026, 0, 2, 3, 4, 5)))).toBe('20260102T030405')
   })
 
   it('timestampSuffix 带点前缀', () => {
-    expect(timestampSuffix(new Date(2026, 7, 13, 22, 30, 45))).toBe('.20260813T223045')
+    expect(timestampSuffix(new Date(Date.UTC(2026, 7, 13, 22, 30, 45)))).toBe('.20260813T223045')
   })
 })
 
