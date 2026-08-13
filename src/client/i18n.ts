@@ -50,7 +50,7 @@ const ZH: CardDict = {
     interceptFsDelete: '拦截 fs 删除（预留）',
   },
   hints: {
-    trashDir: '留空 = 工作区 .dsh-trash（无工作区时 $DSH_HOME/.dsh-safe-delete-trash）',
+    trashDir: '留空 = 工作区/.dsh-trash（无工作区时 $DSH_HOME/.dsh-safe-delete-trash）',
     retentionDays: '0 = 不按时间清理',
     maxSizeBytes: '0 = 不限；默认 5368709120（5 GiB）',
     confirmThreshold: '单次删除达到该条数需审批；0 = 始终确认',
@@ -89,7 +89,7 @@ const EN: CardDict = {
     interceptFsDelete: 'Intercept fs delete (reserved)',
   },
   hints: {
-    trashDir: 'Empty = workspace .dsh-trash (or $DSH_HOME/.dsh-safe-delete-trash without a workspace)',
+    trashDir: 'Empty = workspace/.dsh-trash (or $DSH_HOME/.dsh-safe-delete-trash without a workspace)',
     retentionDays: '0 = never expire by time',
     maxSizeBytes: '0 = unlimited; default 5368709120 (5 GiB)',
     confirmThreshold: 'Batch deletions at/above this count require approval; 0 = always confirm',
