@@ -264,10 +264,10 @@ function installStyles(): () => void {
   return () => { style.remove() }
 }
 
-/** 读取 DSH 当前语言（locale 服务存在时）。 */
+/** 读取 DSH 当前语言（locale 服务存在时；快照字段为 active）。 */
 function readLocaleId(ctx: ClientCtx): string | undefined {
-  const locale = ctx.get('locale') as { getLocale?: () => { id?: string } } | undefined
-  return locale?.getLocale?.()?.id
+  const locale = ctx.get('locale') as { getLocale?: () => { active?: string } } | undefined
+  return locale?.getLocale?.()?.active
 }
 
 /** 浏览器半区入口：注册设置卡片（文案跟随 DSH 语言）。 */
