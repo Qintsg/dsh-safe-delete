@@ -122,7 +122,16 @@ function valueOf(draft: Draft): Record<string, unknown> {
   }
 }
 
-/** 表单字段组件（标签/提示/选项标签/占位均来自字典）。 */
+/** 折叠箭头图标（自包含，仿官方 chevron-down-outline）。 */
+function ChevronIcon(): ReactNode {
+  return (
+    <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m3 5 4 4 4-4" />
+    </svg>
+  )
+}
+
+/** 表单字段组件（仿官方 ValueField：label 行 + 控件 + hint，纵向堆叠）。 */
 function Field({ spec, dict, value, onChange }: {
   spec: FieldSpec
   dict: CardDict
@@ -130,27 +139,43 @@ function Field({ spec, dict, value, onChange }: {
   onChange: (next: string | boolean) => void
 }): ReactNode {
   const optionLabels = dict.options[spec.key]
+  const id = `sdl-field-${spec.key}`
   return (
-    <label className="sdl-field">
-      <span>{dict.fields[spec.key] ?? spec.key}</span>
+    <div className="sdl-field">
+      <div className="sdl-fieldHead">
+        <label className="sdl-label" htmlFor={id}>{dict.fields[spec.key] ?? spec.key}</label>
+      </div>
       {spec.kind === 'boolean' ? (
-        <input type="checkbox" checked={value === true} onChange={(event) => { onChange(event.target.checked) }} />
+        <input
+          id={id}
+          className="sdl-input"
+          type="checkbox"
+          checked={value === true}
+          onChange={(event) => { onChange(event.target.checked) }}
+        />
       ) : spec.kind === 'select' ? (
-        <select value={String(value)} onChange={(event) => { onChange(event.target.value) }}>
+        <select
+          id={id}
+          className="sdl-input"
+          value={String(value)}
+          onChange={(event) => { onChange(event.target.value) }}
+        >
           {spec.options?.map((option) => (
             <option key={option} value={option}>{optionLabels?.[option] ?? option}</option>
           ))}
         </select>
       ) : (
         <input
+          id={id}
+          className="sdl-input"
           type={spec.kind === 'number' ? 'number' : 'text'}
           value={String(value)}
           placeholder={dict.placeholders[spec.key]}
           onChange={(event) => { onChange(event.target.value) }}
         />
       )}
-      {dict.hints[spec.key] === undefined ? null : <small>{dict.hints[spec.key]}</small>}
-    </label>
+      {dict.hints[spec.key] === undefined ? null : <p className="sdl-hint">{dict.hints[spec.key]}</p>}
+    </div>
   )
 }
 
@@ -179,10 +204,16 @@ function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
 
   if (snapshot === undefined || draft === undefined) {
     return (
-      <div className="sdl-card">
-        <h4>{dict.title}</h4>
+      <li className="sdl-card">
+        <button type="button" className="sdl-head" aria-expanded="false">
+          <span className="sdl-headText">
+            <span className="sdl-name">{dict.title}</span>
+            <span className="sdl-desc">{dict.description}</span>
+          </span>
+          <span className="sdl-chevron"><ChevronIcon /></span>
+        </button>
         {error === undefined ? <p className="sdl-muted">{dict.loading}</p> : <p className="sdl-error">{error} <button type="button" onClick={load}>{dict.retry}</button></p>}
-      </div>
+      </li>
     )
   }
 
@@ -209,20 +240,25 @@ function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
   }
 
   return (
-    <div className="sdl-card" data-open={expanded || undefined}>
-      <button type="button" className="sdl-head" aria-expanded={expanded} onClick={() => { setExpanded(value => !value) }}>
+    <li className="sdl-card" data-open={expanded || undefined}>
+      <button
+        type="button"
+        className="sdl-head"
+        aria-expanded={expanded}
+        onClick={() => { setExpanded(value => !value) }}
+      >
         <span className="sdl-headText">
           <span className="sdl-name">{dict.title}</span>
           <span className="sdl-desc">{dict.description}</span>
         </span>
-        <span className="sdl-chevron" data-open={expanded || undefined}>⌄</span>
+        <span className="sdl-chevron" data-open={expanded || undefined}><ChevronIcon /></span>
       </button>
       {!expanded ? null : (
         <div className="sdl-body">
-          {!snapshot.writable ? <p className="sdl-readonly">{dict.readOnly}</p> : null}
-          {message === undefined ? null : <p className="sdl-ok">{message}</p>}
-          {error === undefined ? null : <p className="sdl-error">{error}</p>}
-          <div className="sdl-grid">
+          {!snapshot.writable ? <p className="sdl-readonly" role="status">{dict.readOnly}</p> : null}
+          {message === undefined ? null : <p className="sdl-ok" role="status">{message}</p>}
+          {error === undefined ? null : <p className="sdl-error" role="status">{error}</p>}
+          <div className="sdl-fields">
             {FIELDS.map((spec) => (
               <Field
                 key={spec.key}
@@ -234,14 +270,14 @@ function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
             ))}
           </div>
           <div className="sdl-footer">
-            <button type="button" className="sdl-secondary" disabled={busy} onClick={load}>{dict.reload}</button>
+            <button type="button" className="sdl-discard" disabled={busy} onClick={load}>{dict.reload}</button>
             <button type="button" className="sdl-save" disabled={!snapshot.writable || busy} onClick={save}>
               {busy ? dict.saving : dict.save}
             </button>
           </div>
         </div>
       )}
-    </div>
+    </li>
   )
 }
 
@@ -258,24 +294,27 @@ const CSS = `
 .sdl-chevron[data-open=true]{transform:rotate(180deg)}
 .sdl-body{border-top:1px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}
 .sdl-readonly{margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
-.sdl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-top:12px}
-.sdl-field{display:grid;gap:4px;align-content:start}
-.sdl-field>span{font-size:11px;font-weight:600;color:var(--dsw-alias-label-primary)}
-.sdl-field>small{font-size:10px;color:var(--dsw-alias-label-tertiary);line-height:1.4}
-.sdl-field input[type=text],.sdl-field input[type=number],.sdl-field select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;font-size:12px;padding:7px 9px}
-.sdl-field select{height:32px}
-.sdl-field input[type=checkbox]{width:16px;height:16px}
-.sdl-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 0 4px;border-top:1px solid var(--dsw-alias-border-l2);margin-top:12px}
-.sdl-secondary,.sdl-save{appearance:none;border:1px solid transparent;border-radius:8px;padding:5px 14px;font:inherit;font-size:13px;line-height:1.5;cursor:pointer}
-.sdl-secondary{border-color:var(--dsw-alias-border-l2);background:none;color:var(--dsw-alias-label-secondary)}
-.sdl-secondary:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}
+.sdl-fields{display:flex;flex-direction:column}
+.sdl-field{display:flex;flex-direction:column;gap:6px;padding:12px 0}
+.sdl-field+.sdl-field{border-top:1px solid var(--dsw-alias-border-l2)}
+.sdl-fieldHead{display:flex;align-items:center;gap:8px}
+.sdl-label{flex:1;min-width:0;font-size:13px;font-weight:500;line-height:1.5;color:var(--dsw-alias-label-primary)}
+.sdl-input{height:34px;padding:0 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-3);font:inherit;font-size:13px;line-height:1.5;color:var(--dsw-alias-label-primary);box-sizing:border-box;width:100%}
+.sdl-input:focus-visible{outline:none;border-color:var(--dsw-alias-brand-primary)}
+.sdl-input:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
+select.sdl-input{appearance:auto;cursor:pointer}
+input.sdl-input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
+.sdl-hint{margin:0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
+.sdl-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 0 4px;border-top:1px solid var(--dsw-alias-border-l2);margin-top:4px}
+.sdl-discard,.sdl-save{appearance:none;border:1px solid transparent;border-radius:8px;padding:5px 14px;font:inherit;font-size:13px;line-height:1.5;cursor:pointer}
+.sdl-discard{border-color:var(--dsw-alias-border-l2);background:none;color:var(--dsw-alias-label-secondary)}
+.sdl-discard:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}
 .sdl-save{background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-layer-3)}
-.sdl-secondary:disabled,.sdl-save:disabled{opacity:.4;cursor:default}
-.sdl-secondary:focus-visible,.sdl-save:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.sdl-discard:disabled,.sdl-save:disabled{opacity:.4;cursor:default}
+.sdl-discard:focus-visible,.sdl-save:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .sdl-error{flex:1;min-width:0;margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-error);display:flex;gap:8px;align-items:center}
 .sdl-ok{margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-positive)}
 .sdl-muted{margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
-@media(max-width:720px){.sdl-grid{grid-template-columns:1fr}}
 `
 
 function installStyles(): () => void {
