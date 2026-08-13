@@ -122,7 +122,7 @@ function valueOf(draft: Draft): Record<string, unknown> {
   }
 }
 
-/** 表单字段组件（标签/提示/选项标签均来自字典）。 */
+/** 表单字段组件（标签/提示/选项标签/占位均来自字典）。 */
 function Field({ spec, dict, value, onChange }: {
   spec: FieldSpec
   dict: CardDict
@@ -145,6 +145,7 @@ function Field({ spec, dict, value, onChange }: {
         <input
           type={spec.kind === 'number' ? 'number' : 'text'}
           value={String(value)}
+          placeholder={dict.placeholders[spec.key]}
           onChange={(event) => { onChange(event.target.value) }}
         />
       )}
@@ -153,13 +154,14 @@ function Field({ spec, dict, value, onChange }: {
   )
 }
 
-/** 设置卡片主组件。 */
+/** 设置卡片主组件（可收起/展开）。 */
 function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
   const [snapshot, setSnapshot] = useState<SettingsSnapshot | undefined>(undefined)
   const [draft, setDraft] = useState<Draft | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [expanded, setExpanded] = useState(true)
 
   const load = (): void => {
     setBusy(true)
@@ -208,34 +210,46 @@ function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
 
   return (
     <div className="sdl-card">
-      <h4>{dict.title}</h4>
-      {!snapshot.writable ? <p className="sdl-warn">{dict.readOnly}</p> : null}
-      {message === undefined ? null : <p className="sdl-ok">{message}</p>}
-      {error === undefined ? null : <p className="sdl-error">{error}</p>}
-      <div className="sdl-grid">
-        {FIELDS.map((spec) => (
-          <Field
-            key={spec.key}
-            spec={spec}
-            dict={dict}
-            value={draft[spec.key as keyof Draft]}
-            onChange={(next) => { update(spec.key as keyof Draft, next) }}
-          />
-        ))}
-      </div>
-      <div className="sdl-actions">
-        <button type="button" className="sdl-primary" disabled={!snapshot.writable || busy} onClick={save}>
-          {busy ? dict.saving : dict.save}
-        </button>
-        <button type="button" disabled={busy} onClick={load}>{dict.reload}</button>
-      </div>
+      <button type="button" className="sdl-head" aria-expanded={expanded} onClick={() => { setExpanded(value => !value) }}>
+        <h4>{dict.title}</h4>
+        <span className="sdl-chevron" data-open={expanded || undefined}>⌄</span>
+      </button>
+      {!expanded ? null : (
+        <>
+          {!snapshot.writable ? <p className="sdl-warn">{dict.readOnly}</p> : null}
+          {message === undefined ? null : <p className="sdl-ok">{message}</p>}
+          {error === undefined ? null : <p className="sdl-error">{error}</p>}
+          <div className="sdl-grid">
+            {FIELDS.map((spec) => (
+              <Field
+                key={spec.key}
+                spec={spec}
+                dict={dict}
+                value={draft[spec.key as keyof Draft]}
+                onChange={(next) => { update(spec.key as keyof Draft, next) }}
+              />
+            ))}
+          </div>
+          <div className="sdl-actions">
+            <button type="button" className="sdl-primary" disabled={!snapshot.writable || busy} onClick={save}>
+              {busy ? dict.saving : dict.save}
+            </button>
+            <button type="button" disabled={busy} onClick={load}>{dict.reload}</button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 const CSS = `
 .sdl-card{display:grid;gap:10px;padding:14px;border:1px solid color-mix(in srgb,var(--dsw-alias-border-subtle,#dedbd5) 86%,transparent);border-radius:12px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 96%,transparent)}
-.sdl-card h4{margin:0;font-size:13px}
+.sdl-head{width:100%;display:flex;align-items:center;gap:7px;padding:0;border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;text-align:left}
+.sdl-head:focus-visible{outline:2px solid #7c6ff0;outline-offset:2px;border-radius:6px}
+.sdl-head h4{margin:0;font-size:13px}
+.sdl-card>h4{margin:0;font-size:13px}
+.sdl-chevron{margin-left:auto;transition:transform .16s ease;opacity:.55}
+.sdl-chevron[data-open=true]{transform:rotate(180deg)}
 .sdl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .sdl-field{display:grid;gap:4px;align-content:start}
 .sdl-field>span{font-size:11px;font-weight:600}

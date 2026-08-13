@@ -26,6 +26,8 @@ export interface CardDict {
   fields: Record<string, string>
   /** 字段提示。 */
   hints: Record<string, string>
+  /** 输入框占位文本（默认值示意）。 */
+  placeholders: Record<string, string>
   /** 枚举选项标签（restoreConflict / deleteHijack 等）。 */
   options: Record<string, OptionLabel>
 }
@@ -54,6 +56,9 @@ const ZH: CardDict = {
     retentionDays: '0 = 不按时间清理',
     maxSizeBytes: '0 = 不限；默认 5368709120（5 GiB）',
     confirmThreshold: '单次删除达到该条数需审批；0 = 始终确认',
+  },
+  placeholders: {
+    trashDir: '工作区/.dsh-trash',
   },
   options: {
     restoreConflict: {
@@ -93,6 +98,9 @@ const EN: CardDict = {
     retentionDays: '0 = never expire by time',
     maxSizeBytes: '0 = unlimited; default 5368709120 (5 GiB)',
     confirmThreshold: 'Batch deletions at/above this count require approval; 0 = always confirm',
+  },
+  placeholders: {
+    trashDir: 'workspace/.dsh-trash',
   },
   options: {
     restoreConflict: {
