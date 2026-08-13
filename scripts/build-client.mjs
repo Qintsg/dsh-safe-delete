@@ -19,7 +19,7 @@ const outputPath = join(root, 'lib', 'client.js')
 // 收集编译产物（.js 文件，忽略 map），按文件名排序保证确定性。
 const files = (await readdir(buildDir))
   .filter((name) => name.endsWith('.js'))
-  .sort()
+  .toSorted()
 
 if (files.length === 0) {
   throw new Error('no client build output found in .client-build')
