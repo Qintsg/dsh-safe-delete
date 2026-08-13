@@ -27,7 +27,8 @@ const FIELDS: FieldSpec[] = [
   { key: 'confirmThreshold', kind: 'number' },
   { key: 'restoreConflict', kind: 'select', options: ['rename', 'skip', 'overwrite'] },
   { key: 'deleteHijack', kind: 'select', options: ['block', 'ask', 'off'] },
-  { key: 'interceptFsDelete', kind: 'boolean' },
+  // 注：interceptFsDelete（预留）不在设置卡片显示——
+  // 等 DSH ctx.fs 具备删除能力后再加回表单。代码与文档已保留该配置。
 ]
 
 /** 设置快照（与 host 返回一致）。 */

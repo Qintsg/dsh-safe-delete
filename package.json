@@ -1,6 +1,6 @@
 {
   "name": "dsh-safe-delete",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Safe delete plugin for DeepSeek Harness (DSH): move files to trash / staging area instead of permanent removal, with restore and purge support.",
   "keywords": [
     "deepseek",
