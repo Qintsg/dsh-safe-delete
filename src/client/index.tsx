@@ -8,27 +8,26 @@
  * @date 2026-08-13
  */
 import { useEffect, useState, type ReactNode } from 'react'
+import { resolveDict, type CardDict } from './i18n.js'
 
 /** 与 host 端 settings-route.ts 一致的路由。 */
 const SETTINGS_ROUTE = '/_dsh/safe-delete/settings'
 
-/** 配置字段清单（标签 + 类型提示）。 */
+/** 配置字段清单（标签与提示由字典提供）。 */
 interface FieldSpec {
   key: string
-  label: string
   kind: 'text' | 'number' | 'select' | 'boolean'
   options?: string[]
-  hint?: string
 }
 
 const FIELDS: FieldSpec[] = [
-  { key: 'trashDir', label: '回收区目录', kind: 'text', hint: '留空 = 工作区 .dsh-trash（无工作区时 $DSH_HOME/.dsh-safe-delete-trash）' },
-  { key: 'retentionDays', label: '保留天数', kind: 'number', hint: '0 = 不按时间清理' },
-  { key: 'maxSizeBytes', label: '回收区大小上限（字节）', kind: 'number', hint: '0 = 不限；默认 5368709120（5 GiB）' },
-  { key: 'confirmThreshold', label: '删除确认阈值', kind: 'number', hint: '单次删除达到该条数需审批；0 = 始终确认' },
-  { key: 'restoreConflict', label: '恢复冲突策略', kind: 'select', options: ['rename', 'skip', 'overwrite'] },
-  { key: 'deleteHijack', label: '删除命令劫持', kind: 'select', options: ['block', 'ask', 'off'] },
-  { key: 'interceptFsDelete', label: '拦截 fs 删除（预留）', kind: 'boolean' },
+  { key: 'trashDir', kind: 'text' },
+  { key: 'retentionDays', kind: 'number' },
+  { key: 'maxSizeBytes', kind: 'number' },
+  { key: 'confirmThreshold', kind: 'number' },
+  { key: 'restoreConflict', kind: 'select', options: ['rename', 'skip', 'overwrite'] },
+  { key: 'deleteHijack', kind: 'select', options: ['block', 'ask', 'off'] },
+  { key: 'interceptFsDelete', kind: 'boolean' },
 ]
 
 /** 设置快照（与 host 返回一致）。 */
@@ -122,20 +121,24 @@ function valueOf(draft: Draft): Record<string, unknown> {
   }
 }
 
-/** 表单字段组件。 */
-function Field({ spec, value, onChange }: {
+/** 表单字段组件（标签/提示/选项标签均来自字典）。 */
+function Field({ spec, dict, value, onChange }: {
   spec: FieldSpec
+  dict: CardDict
   value: string | boolean
   onChange: (next: string | boolean) => void
 }): ReactNode {
+  const optionLabels = dict.options[spec.key]
   return (
     <label className="sdl-field">
-      <span>{spec.label}</span>
+      <span>{dict.fields[spec.key] ?? spec.key}</span>
       {spec.kind === 'boolean' ? (
         <input type="checkbox" checked={value === true} onChange={(event) => { onChange(event.target.checked) }} />
       ) : spec.kind === 'select' ? (
         <select value={String(value)} onChange={(event) => { onChange(event.target.value) }}>
-          {spec.options?.map((option) => <option key={option} value={option}>{option}</option>)}
+          {spec.options?.map((option) => (
+            <option key={option} value={option}>{optionLabels?.[option] ?? option}</option>
+          ))}
         </select>
       ) : (
         <input
@@ -144,13 +147,13 @@ function Field({ spec, value, onChange }: {
           onChange={(event) => { onChange(event.target.value) }}
         />
       )}
-      {spec.hint === undefined ? null : <small>{spec.hint}</small>}
+      {dict.hints[spec.key] === undefined ? null : <small>{dict.hints[spec.key]}</small>}
     </label>
   )
 }
 
 /** 设置卡片主组件。 */
-function SafeDeleteCard(_props: CardProps): ReactNode {
+function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
   const [snapshot, setSnapshot] = useState<SettingsSnapshot | undefined>(undefined)
   const [draft, setDraft] = useState<Draft | undefined>(undefined)
   const [busy, setBusy] = useState(false)
@@ -174,8 +177,8 @@ function SafeDeleteCard(_props: CardProps): ReactNode {
   if (snapshot === undefined || draft === undefined) {
     return (
       <div className="sdl-card">
-        <h4>安全删除（dsh-safe-delete）</h4>
-        {error === undefined ? <p className="sdl-muted">加载中…</p> : <p className="sdl-error">{error} <button type="button" onClick={load}>重试</button></p>}
+        <h4>{dict.title}</h4>
+        {error === undefined ? <p className="sdl-muted">{dict.loading}</p> : <p className="sdl-error">{error} <button type="button" onClick={load}>{dict.retry}</button></p>}
       </div>
     )
   }
@@ -196,7 +199,7 @@ function SafeDeleteCard(_props: CardProps): ReactNode {
     })
       .then((next) => {
         setSnapshot(next)
-        setMessage('已保存，实时生效。')
+        setMessage(dict.saved)
       })
       .catch((reason: unknown) => { setError(reason instanceof Error ? reason.message : String(reason)) })
       .finally(() => { setBusy(false) })
@@ -204,8 +207,8 @@ function SafeDeleteCard(_props: CardProps): ReactNode {
 
   return (
     <div className="sdl-card">
-      <h4>安全删除（dsh-safe-delete）</h4>
-      {!snapshot.writable ? <p className="sdl-warn">当前设置提供方为只读。</p> : null}
+      <h4>{dict.title}</h4>
+      {!snapshot.writable ? <p className="sdl-warn">{dict.readOnly}</p> : null}
       {message === undefined ? null : <p className="sdl-ok">{message}</p>}
       {error === undefined ? null : <p className="sdl-error">{error}</p>}
       <div className="sdl-grid">
@@ -213,6 +216,7 @@ function SafeDeleteCard(_props: CardProps): ReactNode {
           <Field
             key={spec.key}
             spec={spec}
+            dict={dict}
             value={draft[spec.key as keyof Draft]}
             onChange={(next) => { update(spec.key as keyof Draft, next) }}
           />
@@ -220,9 +224,9 @@ function SafeDeleteCard(_props: CardProps): ReactNode {
       </div>
       <div className="sdl-actions">
         <button type="button" className="sdl-primary" disabled={!snapshot.writable || busy} onClick={save}>
-          {busy ? '保存中…' : '保存'}
+          {busy ? dict.saving : dict.save}
         </button>
-        <button type="button" disabled={busy} onClick={load}>重新加载</button>
+        <button type="button" disabled={busy} onClick={load}>{dict.reload}</button>
       </div>
     </div>
   )
@@ -260,14 +264,22 @@ function installStyles(): () => void {
   return () => { style.remove() }
 }
 
-/** 浏览器半区入口：注册设置卡片。 */
+/** 读取 DSH 当前语言（locale 服务存在时）。 */
+function readLocaleId(ctx: ClientCtx): string | undefined {
+  const locale = ctx.get('locale') as { getLocale?: () => { id?: string } } | undefined
+  return locale?.getLocale?.()?.id
+}
+
+/** 浏览器半区入口：注册设置卡片（文案跟随 DSH 语言）。 */
 export function apply(ctx: ClientCtx): void {
   ctx.effect(installStyles, 'dsh-safe-delete: styles')
   const slots = ctx.get('slots') as SlotsFace | undefined
   if (slots === undefined) return
+  const dict = resolveDict(readLocaleId(ctx))
   slots.inject('settings.plugin.item', () => slots.register({
     name: 'settings.plugin.item',
     id: 'safe-delete',
     order: 30,
+    inject: () => ({ dict }),
   }, SafeDeleteCard))
 }
