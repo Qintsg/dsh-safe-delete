@@ -161,7 +161,7 @@ function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
 
   const load = (): void => {
     setBusy(true)
@@ -209,14 +209,17 @@ function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
   }
 
   return (
-    <div className="sdl-card">
+    <div className="sdl-card" data-open={expanded || undefined}>
       <button type="button" className="sdl-head" aria-expanded={expanded} onClick={() => { setExpanded(value => !value) }}>
-        <h4>{dict.title}</h4>
+        <span className="sdl-headText">
+          <span className="sdl-name">{dict.title}</span>
+          <span className="sdl-desc">{dict.description}</span>
+        </span>
         <span className="sdl-chevron" data-open={expanded || undefined}>⌄</span>
       </button>
       {!expanded ? null : (
-        <>
-          {!snapshot.writable ? <p className="sdl-warn">{dict.readOnly}</p> : null}
+        <div className="sdl-body">
+          {!snapshot.writable ? <p className="sdl-readonly">{dict.readOnly}</p> : null}
           {message === undefined ? null : <p className="sdl-ok">{message}</p>}
           {error === undefined ? null : <p className="sdl-error">{error}</p>}
           <div className="sdl-grid">
@@ -230,41 +233,48 @@ function SafeDeleteCard({ dict }: CardProps & { dict: CardDict }): ReactNode {
               />
             ))}
           </div>
-          <div className="sdl-actions">
-            <button type="button" className="sdl-primary" disabled={!snapshot.writable || busy} onClick={save}>
+          <div className="sdl-footer">
+            <button type="button" className="sdl-secondary" disabled={busy} onClick={load}>{dict.reload}</button>
+            <button type="button" className="sdl-save" disabled={!snapshot.writable || busy} onClick={save}>
               {busy ? dict.saving : dict.save}
             </button>
-            <button type="button" disabled={busy} onClick={load}>{dict.reload}</button>
           </div>
-        </>
+        </div>
       )}
     </div>
   )
 }
 
 const CSS = `
-.sdl-card{display:grid;gap:10px;padding:14px;border:1px solid color-mix(in srgb,var(--dsw-alias-border-subtle,#dedbd5) 86%,transparent);border-radius:12px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 96%,transparent)}
-.sdl-head{width:100%;display:flex;align-items:center;gap:7px;padding:0;border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;text-align:left}
-.sdl-head:focus-visible{outline:2px solid #7c6ff0;outline-offset:2px;border-radius:6px}
-.sdl-head h4{margin:0;font-size:13px}
-.sdl-card>h4{margin:0;font-size:13px}
-.sdl-chevron{margin-left:auto;transition:transform .16s ease;opacity:.55}
+.sdl-card{list-style:none;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-layer-3);transition:border-color .16s,background .16s}
+.sdl-card:hover{border-color:var(--dsw-alias-label-dimmed)}
+.sdl-card[data-open=true]{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-label-dimmed)}
+.sdl-head{width:100%;appearance:none;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px}
+.sdl-head:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.sdl-headText{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.sdl-name{font-size:15px;font-weight:600;line-height:1.4;color:var(--dsw-alias-label-primary)}
+.sdl-desc{font-size:13px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
+.sdl-chevron{flex:none;color:var(--dsw-alias-label-tertiary);transition:transform .16s}
 .sdl-chevron[data-open=true]{transform:rotate(180deg)}
-.sdl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sdl-body{border-top:1px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}
+.sdl-readonly{margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
+.sdl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-top:12px}
 .sdl-field{display:grid;gap:4px;align-content:start}
-.sdl-field>span{font-size:11px;font-weight:600}
-.sdl-field>small{font-size:10px;color:var(--dsw-alias-fg-muted,#77736d);line-height:1.4}
-.sdl-field input[type=text],.sdl-field input[type=number],.sdl-field select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-subtle,#d9d5ce);border-radius:8px;background:var(--dsw-alias-bg-layer-1,#fff);color:inherit;font:inherit;font-size:12px;padding:7px 9px}
+.sdl-field>span{font-size:11px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.sdl-field>small{font-size:10px;color:var(--dsw-alias-label-tertiary);line-height:1.4}
+.sdl-field input[type=text],.sdl-field input[type=number],.sdl-field select{width:100%;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;font-size:12px;padding:7px 9px}
 .sdl-field select{height:32px}
 .sdl-field input[type=checkbox]{width:16px;height:16px}
-.sdl-actions{display:flex;gap:8px}
-.sdl-actions button{padding:6px 14px;border-radius:999px;border:1px solid var(--dsw-alias-border-subtle,#d9d5ce);background:var(--dsw-alias-bg-layer-1,#fff);font:inherit;font-size:12px;cursor:pointer}
-.sdl-actions .sdl-primary{background:#6758d4;border-color:#6758d4;color:#fff;font-weight:600}
-.sdl-actions button:disabled{opacity:.55;cursor:default}
-.sdl-muted{font-size:11px;color:var(--dsw-alias-fg-muted,#77736d);margin:0}
-.sdl-error{font-size:11px;color:#aa3939;margin:0;display:flex;gap:8px;align-items:center}
-.sdl-ok{font-size:11px;color:#267d52;margin:0}
-.sdl-warn{font-size:11px;color:#986818;margin:0}
+.sdl-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 0 4px;border-top:1px solid var(--dsw-alias-border-l2);margin-top:12px}
+.sdl-secondary,.sdl-save{appearance:none;border:1px solid transparent;border-radius:8px;padding:5px 14px;font:inherit;font-size:13px;line-height:1.5;cursor:pointer}
+.sdl-secondary{border-color:var(--dsw-alias-border-l2);background:none;color:var(--dsw-alias-label-secondary)}
+.sdl-secondary:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}
+.sdl-save{background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-layer-3)}
+.sdl-secondary:disabled,.sdl-save:disabled{opacity:.4;cursor:default}
+.sdl-secondary:focus-visible,.sdl-save:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.sdl-error{flex:1;min-width:0;margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-error);display:flex;gap:8px;align-items:center}
+.sdl-ok{margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-positive)}
+.sdl-muted{margin:12px 0 0;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
 @media(max-width:720px){.sdl-grid{grid-template-columns:1fr}}
 `
 

@@ -15,6 +15,7 @@ export interface OptionLabel {
 /** 卡片文案字典。 */
 export interface CardDict {
   title: string
+  description: string
   loading: string
   retry: string
   readOnly: string
@@ -35,6 +36,7 @@ export interface CardDict {
 /** 中文文案。 */
 const ZH: CardDict = {
   title: '安全删除（dsh-safe-delete）',
+  description: '回收区、保留策略、劫持模式与确认阈值配置',
   loading: '加载中…',
   retry: '重试',
   readOnly: '当前设置提供方为只读。',
@@ -77,6 +79,7 @@ const ZH: CardDict = {
 /** 英文文案。 */
 const EN: CardDict = {
   title: 'Safe Delete (dsh-safe-delete)',
+  description: 'Trash area, retention, hijack mode and confirm threshold',
   loading: 'Loading…',
   retry: 'Retry',
   readOnly: 'The active settings provider is read-only.',
