@@ -124,11 +124,14 @@ export interface ListResult {
 
 /**
  * 列出回收区条目（可过滤）。
+ * 先确保回收区结构存在（与 safeDelete 一致）：回收区未初始化时自动创建，
+ * 避免 readManifest 重建索引时因根目录缺失而抛 ENOENT。
  *
  * :param options: 查询选项
  * :returns: 条目列表与总数
  */
 export async function listEntries(options: ListOptions): Promise<ListResult> {
+  await ensureTrashRoot(options.trashRoot)
   const all = await readManifest(options.trashRoot)
   const re = options.pattern === undefined ? undefined : globToRegExp(options.pattern)
   const matched = re === undefined ? all : all.filter((entry) => re.test(entry.originalPath))

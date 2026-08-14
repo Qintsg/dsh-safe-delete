@@ -3,6 +3,20 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)（SemVer）。
 
+## [0.1.12] - 2026-08-14
+
+### 修复
+
+- **trash_list 回收区未初始化时崩溃（ENOENT）**：全新工作区（`.dsh-trash`
+  尚未创建）直接查询回收区会因 `readManifest` 重建索引时根目录缺失而抛
+  `ENOENT`；`listEntries` 现与 `safeDelete` 一致先 `ensureTrashRoot`
+  自动初始化，查询返回空列表而非崩溃。
+
+### 测试
+
+- ops 单测新增「回收区未初始化时自动初始化并返回空」回归用例（此前该
+  场景无覆盖）。
+
 ## [0.1.7] - 2026-08-13
 
 ### 修复

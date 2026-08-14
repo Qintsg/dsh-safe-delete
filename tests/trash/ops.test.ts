@@ -102,6 +102,17 @@ describe('safeDelete', () => {
 })
 
 describe('listEntries', () => {
+  it('回收区未初始化时自动初始化并返回空', async () => {
+    // root 目录在 beforeEach 中未创建，模拟全新工作区首次查询。
+    const result = await listEntries({ trashRoot: root })
+    expect(result.total).toBe(0)
+    expect(result.entries).toEqual([])
+    // 回收区结构应已被 ensureTrashRoot 初始化。
+    await expectExists(join(root, 'files'))
+    await expectExists(join(root, 'entries'))
+    await expect(access(join(root, 'manifest.jsonl'))).resolves.toBeUndefined()
+  })
+
   it('按 pattern 过滤并按 limit 截断', async () => {
     for (const name of ['a.tmp', 'b.txt', 'c.tmp']) {
       const file = join(ws, name)
