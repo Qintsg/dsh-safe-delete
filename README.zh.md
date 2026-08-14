@@ -11,7 +11,8 @@
 - **安全删除**：文件/目录移入回收区（`.dsh-trash/`）而非永久删除。
 - **恢复**：将已"删除"的文件恢复到原路径，支持 `rename` / `skip` / `overwrite` 三种冲突策略。
 - **彻底清除**：永久清空回收区内容——任何清除操作都需经过审批确认。
-- **删除命令劫持**：经 `tools/pre-execute` 钩子拦截 bash/pwsh 中的 `rm` / `Remove-Item`，引导模型改用 `safe_delete`。
+- **删除命令劫持**：经 `tools/pre-execute` 钩子拦截 bash/pwsh 中的 `rm` / `Remove-Item`，引导模型改用 `safe_delete`；`ssh` / `scp` 等远程执行命令**完全放行**，不做拦截。
+- **超大文件容量保护**：删除目标总大小超过回收区上限（`maxSizeBytes`，默认 5 GiB）时——非 full access 会话需审批；full access 会话需 `DSH_FORCE_DELETE=1` 才放行永久删除，否则拦截并提示。
 - **无工作区兜底**：未分组/无工作区会话回退到全局回收区 `$DSH_HOME/.dsh-safe-delete-trash`。
 - **i18n 设置卡片**：DSH Web → 设置 → 插件中的配置卡片，文案跟随 DSH 语言（中/英），修改即实时生效。
 - **人类友好回收区**：`files/` 镜像原始目录结构，任何人都可以直接拖回文件。
@@ -58,6 +59,43 @@ $env:DSH_FORCE_DELETE=1; Remove-Item -Recurse -Force node_modules
 或走结构化路径：`safe_delete` 加 `permanent: true`。两条路径**仍须审批**——
 逃生舱绕过的只是回收区，不是确认环节。
 
+### 远程命令放行
+
+`ssh` / `scp` 等远程执行客户端**完全放行**，不做删除拦截——远程删除
+发生在远端主机，由远端自行管理，本地劫持不干预：
+
+```bash
+# 以下远程删除均不拦截（无论引号包裹还是裸命令）
+ssh user@host "rm -rf /var/www"
+ssh user@host rm -rf /var/www
+```
+
+注意：命令文本中出现 `ssh` / `scp` 字样的命令会被整体放行（词边界
+匹配）；引号内的 `ssh` 字样（如 `echo "use ssh"`）不构成远程命令。
+
+### 超大文件容量保护
+
+删除目标总大小超过回收区容量上限（`maxSizeBytes`，默认 5 GiB）时，
+为保护回收区不被撑爆，按会话权限执行独立策略：
+
+| 会话权限 | 行为 |
+|---|---|
+| 非 full access（受限） | 转人工**审批**（批准后放行永久删除/移入回收区） |
+| full access + `DSH_FORCE_DELETE=1` | **直接放行**（永久删除，跳过回收区） |
+| full access 无标记 | **拦截并提示**（引导加标记、调大 `maxSizeBytes` 或使用 `safe_delete`） |
+
+`safe_delete` 工具同样受保护：超大文件默认不允许无声撑爆回收区——
+非 full access 需审批；full access 拒绝移入回收区并提示（可用
+`permanent: true` 永久删除，或调整 `maxSizeBytes`）。
+
+目标大小的判定为启发式（解析命令路径 + 递归估算），管道/变量拼接等
+复杂命令可能漏检，不构成安全边界。
+
+> **检测局限**：劫持是命令文本级启发式——删除命令写在**脚本文件内部**
+> （如 `clean.sh` 里的 `rm`、`clean.ps1` 里的 `Remove-Item`、Node/Python
+> 脚本里的删除 API）再执行脚本时，命令文本不含删除关键字，**不会**被
+> 拦截。系统提示词会引导模型优先使用 `safe_delete`、不把删除写进脚本。
+
 ## 回收区结构
 
 回收区位置三级解析：显式 `trashDir` → 工作区 `.dsh-trash` → 全局
@@ -84,10 +122,10 @@ $env:DSH_FORCE_DELETE=1; Remove-Item -Recurse -Force node_modules
 |---|---|---|---|
 | `trashDir` | string | `''`（工作区 `.dsh-trash`；无工作区时 `$DSH_HOME/.dsh-safe-delete-trash`） | 回收区根目录；设置时须为绝对路径 |
 | `retentionDays` | number | `30` | 超过该天数的条目自动清理；`0` 关闭 |
-| `maxSizeBytes` | number | `5368709120`（5 GiB） | 大小上限，超出后从旧到新清理；`0` 关闭 |
+| `maxSizeBytes` | number | `5368709120`（5 GiB） | 回收区大小上限；删除目标超过该值时触发容量保护（按权限审批/拦截）；`0` 关闭 |
 | `confirmThreshold` | number | `10` | 单次删除达到该条数需审批；`0` 始终确认 |
 | `restoreConflict` | enum | `rename` | 恢复冲突默认策略：`rename` / `skip` / `overwrite` |
-| `deleteHijack` | enum | `block` | 劫持 bash/pwsh 删除命令：`block` / `ask` / `off` |
+| `deleteHijack` | enum | `block` | 劫持 bash/pwsh 删除命令：`block` / `ask` / `off`（`ssh`/`scp` 远程命令始终放行） |
 | `interceptFsDelete` | boolean | `false` | 预留：拦截未来 `ctx.fs` 删除方法 |
 
 ## 开发

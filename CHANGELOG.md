@@ -3,6 +3,37 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)（SemVer）。
 
+## [0.2.0] - 2026-08-14
+
+### 变更
+
+- **ssh/scp 远程命令完全放行**：删除命令劫持不再拦截 `ssh` / `scp` 等
+  远程执行客户端（含 `.exe` 变体）的命令——无论引号包裹还是裸 `rm`，
+  远程删除由远端自行管理，本地劫持不干预；引号内的 `ssh` 字样不构成
+  远程命令。
+- **检测局限文档明示**：劫持为命令文本级启发式——删除命令写在脚本文件
+  内部（如 `clean.sh` 的 `rm`、`clean.ps1` 的 `Remove-Item`、Node/
+  Python 脚本的删除 API）再执行脚本时，命令文本不含删除关键字，**不会**
+  被拦截；systemPrompt 引导模型不将删除写进脚本、优先使用 `safe_delete`。
+- **超大文件容量保护**：删除目标总大小超过回收区上限（`maxSizeBytes`，
+  默认 5 GiB）时按会话权限执行独立策略——非 full access 转审批；
+  full access 需 `DSH_FORCE_DELETE=1`（或 `safe_delete permanent: true`）
+  才放行永久删除，否则拦截并提示。`safe_delete` 同受保护（超限默认
+  不允许无声撑爆回收区）。权限经 `ctx.sandboxPolicy` 解析，服务不可用
+  时按受限会话处理（fail-closed）。
+
+### 新增依赖
+
+- peerDependencies / devDependencies：`@deepseek-ai/dsh-sandbox-policy`
+  （`ctx.sandboxPolicy` 声明与运行时解析）。
+
+### 测试
+
+- hijack：目标路径提取、大小统计、超大容量策略（full access deny/标记
+  放行、受限 ask、未超限维持原逻辑）共 8 个新用例。
+- tools：`safe_delete` 超限保护（full access 拒绝、受限审批通过/拒绝、
+  未超限不受影响）共 4 个新用例。
+
 ## [0.1.12] - 2026-08-14
 
 ### 修复

@@ -9,10 +9,12 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
+// 副作用导入：加载 dsh-sandbox-policy 模块，触发 Context.sandboxPolicy 声明合并。
+import '@deepseek-ai/dsh-sandbox-policy'
 import { lstat } from 'node:fs/promises'
 import type { ResolvedConfig } from '../config.js'
 import { requestApproval } from '../approval.js'
-import { removeRecursive } from '../trash/move.js'
+import { removeRecursive, statSize } from '../trash/move.js'
 import { safeDelete } from '../trash/ops.js'
 import { resolveTrashRoot } from '../trash/paths.js'
 
@@ -24,24 +26,27 @@ export interface SafeDeleteToolArgs {
 }
 
 /**
- * 预检可删除的有效条目数（排除不存在、未开 recursive 的目录）。
+ * 预检可删除的有效条目数与总大小（排除不存在、未开 recursive 的目录；
+ * 目录为递归大小估算）。
  *
  * :param paths: 待删除路径
  * :param recursive: 是否允许删除目录
- * :returns: 有效条目数
+ * :returns: 有效条目数与总字节数
  */
-async function countDeletable(paths: string[], recursive: boolean): Promise<number> {
+async function inspectDeletable(paths: string[], recursive: boolean): Promise<{ count: number; size: number }> {
   let count = 0
+  let size = 0
   for (const path of paths) {
     try {
       const info = await lstat(path)
       if (info.isDirectory() && !recursive) continue
       count += 1
+      size += await statSize(path)
     } catch {
       // 不存在：跳过。
     }
   }
-  return count
+  return { count, size }
 }
 
 /**
@@ -153,8 +158,29 @@ export function applySafeDeleteTool(ctx: Context, getConfig: () => ResolvedConfi
         }
         return { entries: [], purged, skipped, trashRoot }
       }
+      // 预检：有效条目数与总大小（含超限容量保护）。
+      const { count: deletable, size: totalSize } = await inspectDeletable(args.paths, args.recursive ?? false)
+      // 超过回收区容量上限：默认不允许无声撑爆回收区。
+      if (config.maxSizeBytes > 0 && totalSize > config.maxSizeBytes) {
+        const policy = ctx.sandboxPolicy?.resolve({ session: exec.agent?.session })
+        if (policy?.mode === 'danger-full-access') {
+          // full access：拒绝移入回收区，提示永久删除或调整配置。
+          throw new Error(
+            `total size (${totalSize} bytes) exceeds the trash capacity limit (${config.maxSizeBytes} bytes); `
+            + 'use permanent: true to delete irreversibly, or adjust maxSizeBytes / empty the trash first.',
+          )
+        }
+        // 非 full access：超大文件移入回收区需审批。
+        if (!(await requestApproval(
+          ctx,
+          exec,
+          `total size ${totalSize} bytes exceeds trash capacity limit (${config.maxSizeBytes} bytes); `
+            + `move to trash anyway: ${args.paths.join(', ')}`,
+        ))) {
+          throw new Error('deletion was not approved')
+        }
+      }
       // 批量删除达到确认阈值时需审批（confirmThreshold: 0 表示始终确认）。
-      const deletable = await countDeletable(args.paths, args.recursive ?? false)
       const needsApproval = config.confirmThreshold === 0 || deletable >= config.confirmThreshold
       if (needsApproval && !(await requestApproval(ctx, exec, `移入回收区 ${deletable} 个路径: ${args.paths.join(', ')}`))) {
         throw new Error('deletion was not approved')

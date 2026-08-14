@@ -17,6 +17,7 @@ import {
   fakeExec,
   findTool,
   type FakeApproval,
+  type FakeSandboxPolicy,
   type MockHarness,
   type MockToolDef,
 } from './helpers/mock-context.js'
@@ -38,10 +39,19 @@ afterEach(async () => {
 })
 
 /** 注册插件并返回 mock harness。 */
-function registerTools(config: object = {}, approval?: FakeApproval): MockHarness {
-  const harness = createMockHarness(undefined, approval)
+function registerTools(
+  config: object = {},
+  approval?: FakeApproval,
+  sandboxPolicy?: FakeSandboxPolicy,
+): MockHarness {
+  const harness = createMockHarness(undefined, approval, sandboxPolicy)
   apply(harness.ctx, Config(config))
   return harness
+}
+
+/** 构造指定沙箱模式的 sandboxPolicy mock。 */
+function sandbox(mode: 'danger-full-access' | 'workspace-write'): FakeSandboxPolicy {
+  return { resolve: () => ({ mode }) }
 }
 
 /** 断言路径存在。 */
@@ -127,6 +137,42 @@ describe('safe_delete 工具', () => {
   it('空 paths 抛错', async () => {
     const harness = registerTools({}, allowAllApproval())
     await expect(runTool(findTool(harness, 'safe_delete'), { paths: [] })).rejects.toThrow(/at least one/)
+  })
+
+  it('超过容量上限且 full access：拒绝移入回收区并提示', async () => {
+    const harness = registerTools({ maxSizeBytes: 10 }, allowAllApproval(), sandbox('danger-full-access'))
+    const file = join(ws, 'big.bin')
+    await writeFile(file, 'x'.repeat(20))
+    await expect(runTool(findTool(harness, 'safe_delete'), { paths: [file] })).rejects.toThrow(/trash capacity limit/)
+    // 文件未被删除。
+    await expectExists(file)
+  })
+
+  it('超过容量上限且非 full access：审批通过后移入回收区', async () => {
+    const harness = registerTools({ maxSizeBytes: 10 }, allowAllApproval(), sandbox('workspace-write'))
+    const file = join(ws, 'big.bin')
+    await writeFile(file, 'x'.repeat(20))
+    const result = await runTool(findTool(harness, 'safe_delete'), { paths: [file] })
+    expect(result.entries).toHaveLength(1)
+    await expectMissing(file)
+    await expectExists(join(ws, '.dsh-trash', 'files', 'big.bin'))
+  })
+
+  it('超过容量上限且非 full access：审批拒绝则中止', async () => {
+    const harness = registerTools({ maxSizeBytes: 10 }, { request: async () => false }, sandbox('workspace-write'))
+    const file = join(ws, 'big.bin')
+    await writeFile(file, 'x'.repeat(20))
+    await expect(runTool(findTool(harness, 'safe_delete'), { paths: [file] })).rejects.toThrow(/not approved/)
+    await expectExists(file)
+  })
+
+  it('未超过容量上限：不受权限影响正常移入回收区', async () => {
+    const harness = registerTools({ maxSizeBytes: 100 }, allowAllApproval(), sandbox('danger-full-access'))
+    const file = join(ws, 'small.txt')
+    await writeFile(file, 'tiny')
+    const result = await runTool(findTool(harness, 'safe_delete'), { paths: [file] })
+    expect(result.entries).toHaveLength(1)
+    await expectMissing(file)
   })
 
   it('无工作区时回退到 DSH 主目录全局回收区', async () => {

@@ -19,7 +19,7 @@
 |---|---|---|
 | 核心 | 独立 agent 工具 | `safe_delete` / `trash_list` / `restore` / `purge`，经 `ctx.tools.register(defineTool(...))` 注册 |
 | 引导 | systemPrompt | `ctx.systemPrompt.section` 注入：删除文件应使用 `safe_delete` 而非 `rm`（始终生效） |
-| 劫持 | `tools/pre-execute` 钩子 | 检测 bash/pwsh 删除命令（rm / Remove-Item / del / erase / rd / rmdir / unlink 等），按配置 `block`（拒绝并提示）或 `ask`（转人工审批） |
+| 劫持 | `tools/pre-execute` 钩子 | 检测 bash/pwsh 删除命令（rm / Remove-Item / del / erase / rd / rmdir / unlink 等），按配置 `block`（拒绝并提示）或 `ask`（转人工审批）；`ssh`/`scp` 远程命令完全放行 |
 | 配置 | settings 服务 | 注册 `safe-delete` 命名空间，DSH Web 设置面板自动渲染表单，变更实时生效（`watch`） |
 | 扩展点 | fs 删除拦截（预留） | 若未来 fs 服务增加删除方法，提供 `interceptFsDelete` 开关（本期不实现） |
 
@@ -147,8 +147,48 @@
 | `block`（默认） | 检测到删除命令 → `{ kind: 'deny', reason: '请使用 safe_delete 工具…' }` |
 | `ask` | 检测到 → `ask` 决策，转 `ctx.approval` 人工确认 |
 
-启发式局限（文档明示）：管道/变量拼接等复杂命令可能漏检；正则检测
-不构成安全边界，仅作防误删的辅助手段。
+启发式局限（文档明示）：管道/变量拼接等复杂命令可能漏检；删除命令
+写在**脚本文件内部**（`clean.sh` 的 `rm`、`clean.ps1` 的
+`Remove-Item`、Node/Python 脚本的删除 API）再执行脚本时，命令文本
+不含删除关键字，完全绕过检测；正则检测不构成安全边界，仅作防误删的
+辅助手段。systemPrompt 引导模型不将删除写进脚本、优先使用
+`safe_delete`。
+
+### 远程命令放行
+
+`ssh` / `scp` 等远程执行客户端**完全放行**，不进入删除检测——远程删除
+发生在远端主机，由远端自行管理，本地劫持不干预。判定为命令文本词边界
+匹配 `ssh` / `scp`（含 `.exe` 变体），此时整个命令直接放行，无论
+引号包裹还是裸 `rm`：
+
+```bash
+ssh user@host "rm -rf /var/www"   # 放行
+ssh user@host rm -rf /var/www     # 放行
+```
+
+边界：引号内的 `ssh` 字样（如 `echo "use ssh"`）不构成远程命令；
+子串（如 `wssh`）不命中词边界。该判定与删除检测同为文本级启发式，
+不构成安全边界。
+
+### 超大文件容量策略
+
+删除目标总大小超过回收区容量上限（`maxSizeBytes`，默认 5 GiB）时，
+回收区放不下，按会话权限执行独立策略（防止无声撑爆回收区）：
+
+| 会话权限（`ctx.sandboxPolicy.resolve()`） | 行为 |
+|---|---|
+| 非 `danger-full-access`（受限） | 转 `ask` 人工审批（`safe_delete` 路径走 `requestApproval`）；批准即放行永久删除/移入回收区 |
+| `danger-full-access`（full access） | 仅携带 `DSH_FORCE_DELETE=1`（或 `safe_delete permanent: true`）时放行永久删除；否则 `deny` 并提示（调大 `maxSizeBytes` / 清空回收区 / 加标记） |
+
+- 劫持路径：解析 `rm`/`Remove-Item` 命令的目标路径（`extractRmTargets`，
+  跳过命令词与 flag），对存在路径递归估算大小（`sumTargetSize`），
+  与 `maxSizeBytes` 比较后决策。
+- 工具路径：`safe_delete` 预检时累计有效条目大小，超限且非 full access
+  需审批，full access 拒绝移入回收区并提示。
+- 判定为启发式：引号包裹的路径会被空白拆分、管道/变量拼接可能漏检，
+  不构成安全边界（文档明示）。
+- 权限获取：`ctx.sandboxPolicy`（`dsh-sandbox-policy` 服务）按调用会话
+  解析；服务不可用（旧部署）时按受限会话处理（fail-closed → 审批）。
 
 ### 逃生舱（防阻断设计）
 

@@ -37,6 +37,11 @@ export interface FakeApproval {
   request(req: object): Promise<unknown>
 }
 
+/** Fake sandboxPolicy 服务形态（resolve 返回会话沙箱模式）。 */
+export interface FakeSandboxPolicy {
+  resolve(request?: unknown): { mode: 'read-only' | 'workspace-write' | 'danger-full-access' }
+}
+
 /** Mock 上下文与收集器。 */
 export interface MockHarness {
   ctx: Context
@@ -83,9 +88,14 @@ export function createFakeSettings<T>(initial: T): {
  * :param settings: 可选 fake settings scope；提供后 inject(['settings'])
  *   会回调并返回该 scope
  * :param approval: 可选 fake approval 服务；提供后 ctx.get('approval') 返回之
+ * :param sandboxPolicy: 可选 fake sandboxPolicy 服务；提供后 ctx.sandboxPolicy 返回之
  * :returns: mock 上下文与收集结果
  */
-export function createMockHarness(settings?: FakeSettingsScope<unknown>, approval?: FakeApproval): MockHarness {
+export function createMockHarness(
+  settings?: FakeSettingsScope<unknown>,
+  approval?: FakeApproval,
+  sandboxPolicy?: FakeSandboxPolicy,
+): MockHarness {
   const tools: MockToolDef[] = []
   const sections: MockSection[] = []
   const events = new Map<string, MockListener[]>()
@@ -112,8 +122,10 @@ export function createMockHarness(settings?: FakeSettingsScope<unknown>, approva
     fiber: { state: 0 },
     get: (name: string): unknown => {
       if (name === 'approval') return approval
+      if (name === 'sandboxPolicy') return sandboxPolicy
       return undefined
     },
+    sandboxPolicy,
     inject: (keys: string[], callback: (scoped: Context) => void): void => {
       if (settings === undefined || !keys.includes('settings')) return
       callback({

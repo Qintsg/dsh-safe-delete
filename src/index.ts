@@ -72,14 +72,16 @@ export function apply(ctx: Context, config: ConfigType): void {
     order: 106,
     text: 'Deleting files: prefer the safe_delete tool (moves files into a restorable trash area) over rm/Remove-Item. '
       + 'Set `permanent: true` only when the deletion must be irreversible (e.g. cleaning node_modules). '
-      + 'Use trash_list / restore to recover deleted files, and purge to empty the trash permanently.',
+      + 'Use trash_list / restore to recover deleted files, and purge to empty the trash permanently. '
+      + 'Do not put deletions into script files (rm / Remove-Item / fs.rmSync / os.remove inside .sh/.ps1/.js/.py): '
+      + 'scripts run outside delete interception, so files are lost without the trash safety net.',
   })
 
   applySafeDeleteTool(ctx, getConfig)
   applyTrashListTool(ctx, getConfig)
   applyRestoreTool(ctx, getConfig)
   applyPurgeTool(ctx, getConfig)
-  applyDeleteHijack(ctx, () => getConfig().deleteHijack)
+  applyDeleteHijack(ctx, () => getConfig().deleteHijack, getConfig)
   // DSH Web 设置卡片的后端路由（webServer 服务存在时生效）。
   installSettingsRoute(ctx)
 }
