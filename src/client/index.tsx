@@ -342,7 +342,8 @@ export function apply(ctx: ClientCtx): void {
   const dict = resolveDict(readLocaleId(ctx))
   slots.inject('settings.plugin.item', () => slots.register({
     name: 'settings.plugin.item',
-    id: 'safe-delete',
+    // settings.plugin.item 是 keyed slot，以所编辑的 settings 命名空间为键。
+    key: 'safe-delete',
     order: 30,
     inject: () => ({ dict }),
   }, SafeDeleteCard))

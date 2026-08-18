@@ -3,6 +3,16 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)（SemVer）。
 
+## [0.2.1] - 2026-08-14
+
+### 修复
+
+- **设置卡片无法加载（keyed slot 缺少 options.key）**：`settings.plugin.item`
+  是 keyed slot，以所编辑的 settings 命名空间为键；浏览器半区注册卡片时
+  误用 `id` 而非 `key`，导致 DSH Web 加载插件报
+  `keyed slot "settings.plugin.item" requires options.key`。已改为
+  `key: 'safe-delete'`（与官方 BashCard 注册方式一致）。
+
 ## [0.2.0] - 2026-08-14
 
 ### 变更
